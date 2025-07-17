@@ -16,7 +16,11 @@ import {
 import { Bell, ChevronDown, Home, LogOut, Settings, User } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-export default function DashboardHeader({ user }) {
+interface DashboardHeaderProps {
+  user: any
+}
+
+export default function DashboardHeader({ user }: DashboardHeaderProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -33,7 +37,7 @@ export default function DashboardHeader({ user }) {
     }
   }
 
-  const getInitials = (name) => {
+  const getInitials = (name: string) => {
     if (!name) return "U"
     return name
       .split(" ")
@@ -47,7 +51,7 @@ export default function DashboardHeader({ user }) {
   const userEmail = user?.email || ""
 
   return (
-    <header className="bg-white border-b px-6 py-3">
+    <header className="bg-white border-b px-6 py-3 sticky top-0 z-50">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <Link href="/" className="mr-6">

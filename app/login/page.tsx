@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase"
@@ -29,41 +31,59 @@ export default function LoginPage() {
 
   // Check if user is already logged in
   useEffect(() => {
+    let isMounted = true
+
     const checkSession = async () => {
       try {
         const supabase = createSupabaseClient()
         const {
           data: { session },
+          error,
         } = await supabase.auth.getSession()
 
-        if (session) {
-          router.push("/dashboard")
+        if (!isMounted) return
+
+        if (error) {
+          console.error("Session check error:", error)
         }
+
+        if (session?.user) {
+          console.log("User already logged in, redirecting to dashboard")
+          router.push("/dashboard")
+          return
+        }
+
+        setIsCheckingAuth(false)
       } catch (error) {
+        if (!isMounted) return
         console.error("Session check error:", error)
-      } finally {
         setIsCheckingAuth(false)
       }
     }
 
     checkSession()
+
+    return () => {
+      isMounted = false
+    }
   }, [router])
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    setShowResendButton(false)
 
     try {
       const supabase = createSupabaseClient()
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       })
 
       if (error) {
-        if (error.message.includes("Email not confirmed")) {
+        if (error.message.includes("Email not confirmed") || error.message.includes("email_not_confirmed")) {
           setError(
             "Your email has not been verified. Please check your inbox or click 'Resend verification email' below.",
           )
@@ -73,13 +93,16 @@ export default function LoginPage() {
         throw error
       }
 
-      if (data?.session) {
+      if (data?.session?.user) {
         console.log("Login successful, redirecting to dashboard")
-        router.push("/dashboard")
+        // Small delay to ensure session is properly set
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 100)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error)
-      setError(error.message || "Failed to sign in")
+      setError(error.message || "Failed to sign in. Please check your credentials.")
     } finally {
       setIsLoading(false)
     }
@@ -94,13 +117,14 @@ export default function LoginPage() {
 
       const { error } = await supabase.auth.resend({
         type: "signup",
-        email,
+        email: email.trim(),
       })
 
       if (error) throw error
 
       setResendSuccess(true)
-    } catch (error) {
+      setShowResendButton(false)
+    } catch (error: any) {
       console.error("Error resending verification email:", error)
       setError(error.message || "Failed to resend verification email")
     } finally {
@@ -108,7 +132,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleSignUp = async (e) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
@@ -119,25 +143,35 @@ export default function LoginPage() {
       return
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const supabase = createSupabaseClient()
 
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
         password,
         options: {
           data: {
-            full_name: name,
+            full_name: name.trim(),
           },
         },
       })
 
       if (error) throw error
 
-      // Show success message or redirect
-      setActiveTab("login")
-      setError("Registration successful! Please check your email to verify your account.")
-    } catch (error) {
+      if (data?.user) {
+        setActiveTab("login")
+        setError("Registration successful! Please check your email to verify your account before signing in.")
+        setEmail("")
+        setPassword("")
+        setName("")
+      }
+    } catch (error: any) {
       console.error("Signup error:", error)
       setError(error.message || "Failed to create account")
     } finally {
@@ -148,8 +182,10 @@ export default function LoginPage() {
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Checking authentication...</span>
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="text-sm text-gray-600">Checking authentication...</span>
+        </div>
       </div>
     )
   }
@@ -179,6 +215,14 @@ export default function LoginPage() {
                   </Alert>
                 )}
 
+                {resendSuccess && (
+                  <Alert className="mb-4">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Email Sent</AlertTitle>
+                    <AlertDescription>Verification email has been resent. Please check your inbox.</AlertDescription>
+                  </Alert>
+                )}
+
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
@@ -190,6 +234,7 @@ export default function LoginPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div className="space-y-2">
@@ -205,6 +250,7 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
@@ -218,35 +264,26 @@ export default function LoginPage() {
                       )}
                     </Button>
                   </form>
+
                   {showResendButton && (
                     <div className="mt-4 pt-4 border-t">
                       <p className="text-sm text-muted-foreground mb-2">Haven't received the verification email?</p>
-                      {resendSuccess ? (
-                        <Alert className="mb-4">
-                          <CheckCircle className="h-4 w-4" />
-                          <AlertTitle>Email Sent</AlertTitle>
-                          <AlertDescription>
-                            Verification email has been resent. Please check your inbox.
-                          </AlertDescription>
-                        </Alert>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full"
-                          onClick={resendVerificationEmail}
-                          disabled={isResending}
-                        >
-                          {isResending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            "Resend verification email"
-                          )}
-                        </Button>
-                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={resendVerificationEmail}
+                        disabled={isResending}
+                      >
+                        {isResending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          "Resend verification email"
+                        )}
+                      </Button>
                     </div>
                   )}
                 </TabsContent>
@@ -261,6 +298,7 @@ export default function LoginPage() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div className="space-y-2">
@@ -272,6 +310,7 @@ export default function LoginPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div className="space-y-2">
@@ -282,6 +321,8 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        disabled={isLoading}
+                        minLength={6}
                       />
                       <p className="text-xs text-gray-500">Password must be at least 6 characters long</p>
                     </div>
