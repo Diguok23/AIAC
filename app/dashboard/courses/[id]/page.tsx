@@ -3,12 +3,20 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { CheckCircle, Circle, ArrowLeft, BookOpen, Clock, Award } from "lucide-react"
+import { CheckCircle, Circle, ArrowLeft, BookOpen, Award, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+
+interface Lesson {
+  id: string
+  title: string
+  content: string
+  order_num: number
+}
 
 interface Module {
   id: string
@@ -16,6 +24,7 @@ interface Module {
   description: string
   order_num: number
   is_completed: boolean
+  lessons: Lesson[] // Added lessons to module
 }
 
 interface Course {
@@ -26,6 +35,7 @@ interface Course {
   level: string
   progress: number
   status: string
+  duration: string | null // Added duration
 }
 
 export default function CourseDetailPage() {
@@ -50,38 +60,39 @@ export default function CourseDetailPage() {
           return
         }
 
-        // Fetch course details
-        const { data: courseData, error: courseError } = await supabase
-          .from("user_courses")
+        // Fetch user enrollment details for the course
+        const { data: enrollmentData, error: enrollmentError } = await supabase
+          .from("user_enrollments") // Changed from user_courses
           .select(`
-            course_id,
+            certification_id,
             progress,
             status,
-            certifications:course_id(
+            certifications:certification_id(
               id,
               title,
               description,
               category,
-              level
+              level,
+              duration
             )
           `)
           .eq("user_id", session.user.id)
-          .eq("course_id", params.id)
+          .eq("certification_id", params.id) // Changed from course_id
           .single()
 
-        if (courseError) throw courseError
+        if (enrollmentError) throw enrollmentError
 
-        if (!courseData) {
+        if (!enrollmentData) {
           toast({
             title: "Course not found",
             description: "You are not enrolled in this course",
             variant: "destructive",
           })
-          router.push("/dashboard/courses")
+          router.push("/dashboard/certifications") // Redirect to certifications page
           return
         }
 
-        // Fetch modules with completion status
+        // Fetch modules for the certification and their associated lessons
         const { data: modulesData, error: modulesError } = await supabase
           .from("modules")
           .select(`
@@ -89,32 +100,50 @@ export default function CourseDetailPage() {
             title,
             description,
             order_num,
-            user_modules:id(is_completed)
+            lessons (
+              id,
+              title,
+              content,
+              order_num
+            )
           `)
           .eq("certification_id", params.id)
           .order("order_num")
+          .order("order_num", { foreignTable: "lessons", ascending: true }) // Order lessons within modules
 
         if (modulesError) throw modulesError
 
+        // Fetch user's completion status for each module
+        const { data: userModulesData, error: userModulesError } = await supabase
+          .from("user_modules")
+          .select("module_id, is_completed")
+          .eq("user_id", session.user.id)
+          .eq("course_id", params.id) // course_id here refers to certification_id
+
+        if (userModulesError) throw userModulesError
+
+        const userModuleCompletionMap = new Map(userModulesData?.map((um) => [um.module_id, um.is_completed]) || [])
+
         // Format course data
         const formattedCourse = {
-          id: courseData.certifications.id,
-          title: courseData.certifications.title,
-          description: courseData.certifications.description,
-          category: courseData.certifications.category,
-          level: courseData.certifications.level,
-          progress: courseData.progress,
-          status: courseData.status,
+          id: enrollmentData.certifications.id,
+          title: enrollmentData.certifications.title,
+          description: enrollmentData.certifications.description,
+          category: enrollmentData.certifications.category,
+          level: enrollmentData.certifications.level,
+          duration: enrollmentData.certifications.duration,
+          progress: enrollmentData.progress,
+          status: enrollmentData.status,
         }
 
-        // Format modules data with completion status
+        // Format modules data with completion status and nested lessons
         const formattedModules = modulesData.map((module) => ({
           id: module.id,
           title: module.title,
           description: module.description,
           order_num: module.order_num,
-          is_completed:
-            module.user_modules && module.user_modules.length > 0 ? module.user_modules[0].is_completed : false,
+          is_completed: userModuleCompletionMap.get(module.id) || false,
+          lessons: module.lessons || [],
         }))
 
         setCourse(formattedCourse)
@@ -149,15 +178,15 @@ export default function CourseDetailPage() {
       }
 
       // Check if user_module record exists
-      const { data: existingModule } = await supabase
+      const { data: existingUserModule } = await supabase
         .from("user_modules")
         .select("*")
         .eq("user_id", session.user.id)
-        .eq("course_id", params.id)
+        .eq("course_id", params.id) // course_id here refers to certification_id
         .eq("module_id", moduleId)
         .single()
 
-      if (existingModule) {
+      if (existingUserModule) {
         // Update existing record
         await supabase
           .from("user_modules")
@@ -169,7 +198,7 @@ export default function CourseDetailPage() {
           .eq("course_id", params.id)
           .eq("module_id", moduleId)
       } else {
-        // Insert new record
+        // Insert new record (should ideally not happen if modules are pre-created on enrollment)
         await supabase.from("user_modules").insert({
           user_id: session.user.id,
           course_id: params.id as string,
@@ -180,31 +209,31 @@ export default function CourseDetailPage() {
       }
 
       // Update local state
-      setModules(
-        modules.map((module) => (module.id === moduleId ? { ...module, is_completed: !currentStatus } : module)),
+      const updatedModules = modules.map((module) =>
+        module.id === moduleId ? { ...module, is_completed: !currentStatus } : module,
       )
+      setModules(updatedModules)
 
       // Calculate new progress
-      const completedModules = modules.reduce((count, module) => {
-        if (module.id === moduleId) {
-          return count + (!currentStatus ? 1 : -1)
-        }
-        return count + (module.is_completed ? 1 : 0)
-      }, 0)
+      const completedModulesCount = updatedModules.filter((module) => module.is_completed).length
+      const newProgress = Math.round((completedModulesCount / updatedModules.length) * 100)
 
-      const newProgress = Math.round((completedModules / modules.length) * 100)
-
-      // Update course progress
+      // Update course progress in user_enrollments
       await supabase
-        .from("user_courses")
+        .from("user_enrollments") // Changed from user_courses
         .update({
           progress: newProgress,
           status: newProgress === 100 ? "completed" : newProgress > 0 ? "in_progress" : "not_started",
-          completion_date: newProgress === 100 ? new Date().toISOString() : null,
-          last_accessed: new Date().toISOString(),
+          completed_at: newProgress === 100 ? new Date().toISOString() : null, // Changed from completion_date
+          started_at:
+            course?.status === "not_started" && newProgress > 0
+              ? new Date().toISOString()
+              : course?.status === "not_started"
+                ? null
+                : course?.started_at, // Set started_at if not already set
         })
         .eq("user_id", session.user.id)
-        .eq("course_id", params.id)
+        .eq("certification_id", params.id) // Changed from course_id
 
       // Update local state
       if (course) {
@@ -255,9 +284,9 @@ export default function CourseDetailPage() {
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold mb-2">Course Not Found</h2>
           <p className="text-gray-500 mb-6">The course you're looking for doesn't exist or you're not enrolled.</p>
-          <Button onClick={() => router.push("/dashboard/courses")}>
+          <Button onClick={() => router.push("/dashboard/certifications")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Courses
+            Back to Certifications
           </Button>
         </div>
       </div>
@@ -266,9 +295,9 @@ export default function CourseDetailPage() {
 
   return (
     <div className="container py-8">
-      <Button variant="ghost" className="mb-6" onClick={() => router.push("/dashboard/courses")}>
+      <Button variant="ghost" className="mb-6" onClick={() => router.push("/dashboard/certifications")}>
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Courses
+        Back to Certifications
       </Button>
 
       <div className="mb-8">
@@ -278,6 +307,11 @@ export default function CourseDetailPage() {
           <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded">
             {course.level}
           </span>
+          {course.duration && (
+            <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              {course.duration}
+            </span>
+          )}
           <span
             className={`text-xs font-medium px-2.5 py-0.5 rounded ${
               course.status === "completed"
@@ -307,40 +341,59 @@ export default function CourseDetailPage() {
 
       <h2 className="text-2xl font-bold mb-4">Course Modules</h2>
       <div className="space-y-4">
-        {modules.map((module) => (
-          <Card key={module.id} className={module.is_completed ? "border-green-200 bg-green-50" : ""}>
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-lg">{module.title}</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={updating}
-                  onClick={() => toggleModuleCompletion(module.id, module.is_completed)}
-                  className={module.is_completed ? "text-green-600" : "text-gray-400"}
-                >
-                  {module.is_completed ? <CheckCircle className="h-6 w-6" /> : <Circle className="h-6 w-6" />}
-                </Button>
-              </div>
-              <CardDescription>Module {module.order_num}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">{module.description}</p>
-            </CardContent>
-            <CardFooter className="pt-0 flex justify-between">
-              <div className="flex items-center text-sm text-gray-500">
-                <BookOpen className="h-4 w-4 mr-1" />
-                <span>Study Materials</span>
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="h-4 w-4 mr-1" />
-                <span>Est. 2 hours</span>
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
-
-        {modules.length === 0 && (
+        {modules.length > 0 ? (
+          <Accordion type="multiple" className="w-full">
+            {modules.map((module) => (
+              <Card key={module.id} className={module.is_completed ? "border-green-200 bg-green-50" : ""}>
+                <AccordionItem value={module.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <AccordionTrigger className="flex-1 text-left">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {module.order_num}. {module.title}
+                          {module.is_completed && <CheckCircle className="h-5 w-5 text-green-600" />}
+                        </CardTitle>
+                      </AccordionTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={updating}
+                        onClick={(e) => {
+                          e.stopPropagation() // Prevent accordion from toggling
+                          toggleModuleCompletion(module.id, module.is_completed)
+                        }}
+                        className={module.is_completed ? "text-green-600" : "text-gray-400"}
+                      >
+                        {module.is_completed ? <CheckCircle className="h-6 w-6" /> : <Circle className="h-6 w-6" />}
+                      </Button>
+                    </div>
+                    <CardDescription>{module.description}</CardDescription>
+                  </CardHeader>
+                  <AccordionContent>
+                    <CardContent className="pt-0">
+                      {module.lessons && module.lessons.length > 0 ? (
+                        <div className="space-y-3 mt-4">
+                          <h3 className="text-lg font-semibold">Lessons:</h3>
+                          {module.lessons.map((lesson) => (
+                            <div key={lesson.id} className="border rounded-md p-3 bg-white">
+                              <h4 className="font-medium text-base flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-gray-500" />
+                                {lesson.order_num}. {lesson.title}
+                              </h4>
+                              <p className="text-sm text-gray-700 mt-1">{lesson.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-4">No lessons available for this module yet.</p>
+                      )}
+                    </CardContent>
+                  </AccordionContent>
+                </AccordionItem>
+              </Card>
+            ))}
+          </Accordion>
+        ) : (
           <div className="text-center py-12 border rounded-lg">
             <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium mb-2">No Modules Available</h3>

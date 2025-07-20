@@ -18,18 +18,21 @@ interface Certification {
   category: string
   level: string
   price: number
-  duration: string
+  duration: string | null // Added duration
 }
 
 interface UserEnrollment {
   id: string
   certification_id: string
-  status: "pending" | "active" | "completed" | "suspended"
+  status: "not_started" | "in_progress" | "completed" | "suspended"
   progress: number
   enrolled_at: string
-  started_at?: string
-  completed_at?: string
-  certification: Certification
+  started_at?: string | null
+  completed_at?: string | null
+  due_date?: string | null // Added due_date
+  certificate_issued?: boolean // Added certificate_issued
+  certificate_url?: string | null // Added certificate_url
+  certifications: Certification // Changed to Certification type
 }
 
 interface Application {
@@ -71,6 +74,9 @@ export default function DashboardCertificationsPage() {
             enrolled_at,
             started_at,
             completed_at,
+            due_date,
+            certificate_issued,
+            certificate_url,
             certifications:certification_id (
               id,
               title,
@@ -135,6 +141,7 @@ export default function DashboardCertificationsPage() {
       case "pending":
         return <Clock className="h-4 w-4 text-yellow-500" />
       case "active":
+      case "in_progress": // Added in_progress
         return <Play className="h-4 w-4 text-blue-500" />
       case "completed":
         return <CheckCircle className="h-4 w-4 text-green-500" />
@@ -148,7 +155,9 @@ export default function DashboardCertificationsPage() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pending: "outline",
+      not_started: "outline", // Added not_started
       active: "default",
+      in_progress: "default", // Added in_progress
       completed: "secondary",
       suspended: "destructive",
       approved: "default",
@@ -157,7 +166,9 @@ export default function DashboardCertificationsPage() {
 
     const colors: Record<string, string> = {
       pending: "text-yellow-700 bg-yellow-50 border-yellow-200",
+      not_started: "text-gray-700 bg-gray-50 border-gray-200", // Added not_started
       active: "text-blue-700 bg-blue-50 border-blue-200",
+      in_progress: "text-blue-700 bg-blue-50 border-blue-200", // Added in_progress
       completed: "text-green-700 bg-green-50 border-green-200",
       suspended: "text-red-700 bg-red-50 border-red-200",
       approved: "text-green-700 bg-green-50 border-green-200",
@@ -166,7 +177,7 @@ export default function DashboardCertificationsPage() {
 
     return (
       <Badge variant={variants[status] || "outline"} className={`text-xs ${colors[status] || ""}`}>
-        {status.toUpperCase()}
+        {status.toUpperCase().replace(/_/g, " ")} {/* Format status for display */}
       </Badge>
     )
   }
@@ -235,7 +246,9 @@ export default function DashboardCertificationsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="enrolled">Enrolled ({enrollments.length})</TabsTrigger>
+          <TabsTrigger value="enrolled">
+            Enrolled ({enrollments.filter((e) => e.status !== "completed").length})
+          </TabsTrigger>
           <TabsTrigger value="available">Available ({getUnenrolledApprovedCertifications().length})</TabsTrigger>
           <TabsTrigger value="applications">Applications ({applications.length})</TabsTrigger>
           <TabsTrigger value="completed">
@@ -245,7 +258,7 @@ export default function DashboardCertificationsPage() {
 
         {/* Enrolled Courses */}
         <TabsContent value="enrolled" className="space-y-4">
-          {enrollments.length > 0 ? (
+          {enrollments.filter((e) => e.status !== "completed").length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {enrollments
                 .filter((enrollment) => enrollment.status !== "completed")
@@ -253,19 +266,21 @@ export default function DashboardCertificationsPage() {
                   <Card key={enrollment.id} className="flex flex-col">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <Badge variant="outline">{enrollment.certification.category}</Badge>
+                        <Badge variant="outline">{enrollment.certifications.category}</Badge>
                         {getStatusIcon(enrollment.status)}
                       </div>
-                      <CardTitle className="text-lg">{enrollment.certification.title}</CardTitle>
-                      <CardDescription>{enrollment.certification.description}</CardDescription>
+                      <CardTitle className="text-lg">{enrollment.certifications.title}</CardTitle>
+                      <CardDescription>{enrollment.certifications.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-grow">
                       <div className="space-y-4">
                         <div className="flex justify-between text-sm">
-                          <span>Level: {enrollment.certification.level}</span>
-                          <span>Duration: {enrollment.certification.duration}</span>
+                          <span>Level: {enrollment.certifications.level}</span>
+                          {enrollment.certifications.duration && (
+                            <span>Duration: {enrollment.certifications.duration}</span>
+                          )}
                         </div>
-                        {enrollment.status === "active" && (
+                        {(enrollment.status === "active" || enrollment.status === "in_progress") && (
                           <div>
                             <div className="flex justify-between text-sm mb-2">
                               <span>Progress</span>
@@ -283,7 +298,7 @@ export default function DashboardCertificationsPage() {
                       </div>
                     </CardContent>
                     <CardFooter className="flex gap-2">
-                      {enrollment.status === "active" ? (
+                      {enrollment.status === "active" || enrollment.status === "in_progress" ? (
                         <Button asChild className="flex-1">
                           <Link href={`/dashboard/courses/${enrollment.certification_id}`}>
                             <Play className="mr-2 h-4 w-4" />
@@ -293,11 +308,15 @@ export default function DashboardCertificationsPage() {
                       ) : (
                         <Button variant="outline" className="flex-1 bg-transparent" disabled>
                           <Clock className="mr-2 h-4 w-4" />
-                          {enrollment.status === "pending" ? "Pending Approval" : "Suspended"}
+                          {enrollment.status === "pending"
+                            ? "Pending Approval"
+                            : enrollment.status === "not_started"
+                              ? "Not Started"
+                              : "Suspended"}
                         </Button>
                       )}
                       <Button variant="outline" size="icon" asChild>
-                        <Link href={`/certifications/${enrollment.certification.id}`}>
+                        <Link href={`/certifications/${enrollment.certification_id}`}>
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>
@@ -341,7 +360,7 @@ export default function DashboardCertificationsPage() {
                       <div className="space-y-4">
                         <div className="flex justify-between text-sm">
                           <span>Level: {certification.level}</span>
-                          <span>Duration: {certification.duration}</span>
+                          {certification.duration && <span>Duration: {certification.duration}</span>}
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
@@ -440,17 +459,19 @@ export default function DashboardCertificationsPage() {
                   <Card key={enrollment.id} className="flex flex-col border-green-200">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <Badge variant="outline">{enrollment.certification.category}</Badge>
+                        <Badge variant="outline">{enrollment.certifications.category}</Badge>
                         <Award className="h-4 w-4 text-green-500" />
                       </div>
-                      <CardTitle className="text-lg">{enrollment.certification.title}</CardTitle>
-                      <CardDescription>{enrollment.certification.description}</CardDescription>
+                      <CardTitle className="text-lg">{enrollment.certifications.title}</CardTitle>
+                      <CardDescription>{enrollment.certifications.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-grow">
                       <div className="space-y-4">
                         <div className="flex justify-between text-sm">
-                          <span>Level: {enrollment.certification.level}</span>
-                          <span>Duration: {enrollment.certification.duration}</span>
+                          <span>Level: {enrollment.certifications.level}</span>
+                          {enrollment.certifications.duration && (
+                            <span>Duration: {enrollment.certifications.duration}</span>
+                          )}
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
@@ -462,12 +483,16 @@ export default function DashboardCertificationsPage() {
                       </div>
                     </CardContent>
                     <CardFooter className="flex gap-2">
-                      <Button variant="outline" className="flex-1 bg-transparent">
+                      <Button
+                        variant="outline"
+                        className="flex-1 bg-transparent"
+                        disabled={!enrollment.certificate_issued}
+                      >
                         <Download className="mr-2 h-4 w-4" />
                         Download Certificate
                       </Button>
                       <Button variant="outline" size="icon" asChild>
-                        <Link href={`/certifications/${enrollment.certification.id}`}>
+                        <Link href={`/certifications/${enrollment.certification_id}`}>
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>

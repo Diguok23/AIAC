@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -30,7 +30,14 @@ import {
   Users,
   Zap,
   Download,
+  CalendarIcon,
+  FileText,
 } from "lucide-react"
+import { format } from "date-fns"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface Certification {
   id: string
@@ -41,6 +48,7 @@ interface Certification {
   price: number
   slug: string
   created_at: string
+  duration: string | null // Added duration
 }
 
 interface Application {
@@ -53,6 +61,49 @@ interface Application {
   program_category: string
   status: string
   created_at: string
+}
+
+interface UserEnrollment {
+  id: string
+  user_id: string
+  certification_id: string
+  status: string
+  progress: number
+  enrolled_at: string
+  due_date: string | null
+  certificate_issued: boolean
+  certificate_url: string | null
+  certifications: {
+    id: string
+    title: string
+    category: string
+    level: string
+    duration: string | null
+  } | null
+}
+
+interface User {
+  id: string
+  email: string
+  created_at: string
+  last_sign_in_at: string | null
+  enrollments: UserEnrollment[]
+}
+
+interface Module {
+  id: string
+  certification_id: string
+  title: string
+  description: string | null
+  order_num: number
+}
+
+interface Lesson {
+  id: string
+  module_id: string
+  title: string
+  content: string | null
+  order_num: number
 }
 
 export default function SetupPage() {
@@ -74,7 +125,37 @@ export default function SetupPage() {
   // Applications management
   const [applications, setApplications] = useState<Application[]>([])
   const [loadingApplications, setLoadingApplications] = useState(false)
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
+
+  // Users management
+  const [users, setUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [isAssigningCourse, setIsAssigningCourse] = useState(false)
+  const [selectedUserForAssignment, setSelectedUserForAssignment] = useState<User | null>(null)
+  const [assignCourseForm, setAssignCourseForm] = useState({
+    certificationId: "",
+    dueDate: new Date(),
+  })
+
+  // Course Content Management (Modules & Lessons)
+  const [selectedCertForContent, setSelectedCertForContent] = useState<string>("")
+  const [modules, setModules] = useState<Module[]>([])
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [loadingContent, setLoadingContent] = useState(false)
+  const [isAddingModule, setIsAddingModule] = useState(false)
+  const [editingModule, setEditingModule] = useState<Module | null>(null)
+  const [moduleForm, setModuleForm] = useState({
+    title: "",
+    description: "",
+    order_num: 0,
+  })
+  const [isAddingLesson, setIsAddingLesson] = useState(false)
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null)
+  const [selectedModuleForLesson, setSelectedModuleForLesson] = useState<Module | null>(null)
+  const [lessonForm, setLessonForm] = useState({
+    title: "",
+    content: "",
+    order_num: 0,
+  })
 
   // Form state for certification
   const [certificationForm, setCertificationForm] = useState({
@@ -84,6 +165,7 @@ export default function SetupPage() {
     level: "",
     price: 0,
     slug: "",
+    duration: "", // Added duration
   })
 
   const categories = [
@@ -101,370 +183,392 @@ export default function SetupPage() {
 
   const levels = ["Entry-Level", "Intermediate", "Advanced", "Executive", "All Levels"]
 
-  // Additional certifications to auto-add
-  const additionalCertifications = [
-    // Advanced Hospitality Specializations (20 programs)
-    {
-      title: "Luxury Resort Management Excellence",
-      description:
-        "Master the art of managing ultra-luxury resorts with focus on personalized service, exclusive amenities, and high-net-worth guest expectations.",
-      category: "executive",
-      level: "Executive",
-      price: 220,
-      slug: "luxury-resort-management-excellence",
-    },
-    {
-      title: "Boutique Hotel Operations Specialist",
-      description:
-        "Specialized training for managing boutique hotels with emphasis on unique character, personalized service, and local cultural integration.",
-      category: "executive",
-      level: "Advanced",
-      price: 185,
-      slug: "boutique-hotel-operations-specialist",
-    },
-    {
-      title: "Resort Activities & Recreation Management",
-      description:
-        "Comprehensive training in planning, organizing, and managing recreational activities and entertainment programs at resort destinations.",
-      category: "frontline",
-      level: "Intermediate",
-      price: 135,
-      slug: "resort-activities-recreation-management",
-    },
-    {
-      title: "Hotel Concierge Excellence Program",
-      description:
-        "Advanced concierge training covering luxury services, local expertise, VIP guest relations, and exclusive experience curation.",
-      category: "frontline",
-      level: "Advanced",
-      price: 155,
-      slug: "hotel-concierge-excellence-program",
-    },
-    {
-      title: "Hospitality Sustainability Leadership",
-      description:
-        "Executive certification in sustainable hospitality practices, environmental stewardship, and green operations management.",
-      category: "executive",
-      level: "Executive",
-      price: 195,
-      slug: "hospitality-sustainability-leadership",
-    },
-
-    // Cruise Ship Advanced Specializations (15 programs)
-    {
-      title: "Cruise Ship Bridge Operations",
-      description:
-        "Advanced training for deck officers and bridge personnel in navigation, safety protocols, and maritime operations aboard cruise vessels.",
-      category: "cruise",
-      level: "Advanced",
-      price: 210,
-      slug: "cruise-ship-bridge-operations",
-    },
-    {
-      title: "Maritime Hotel Services Management",
-      description:
-        "Specialized certification combining maritime regulations with hotel service excellence for cruise ship hospitality managers.",
-      category: "cruise",
-      level: "Advanced",
-      price: 185,
-      slug: "maritime-hotel-services-management",
-    },
-    {
-      title: "Cruise Ship Culinary Excellence",
-      description:
-        "Advanced culinary certification for cruise ship chefs covering international cuisine, large-scale production, and maritime food safety.",
-      category: "cruise",
-      level: "Advanced",
-      price: 175,
-      slug: "cruise-ship-culinary-excellence",
-    },
-    {
-      title: "Maritime Guest Experience Design",
-      description:
-        "Training in creating memorable guest experiences aboard cruise ships, including itinerary planning and onboard activity coordination.",
-      category: "cruise",
-      level: "Intermediate",
-      price: 145,
-      slug: "maritime-guest-experience-design",
-    },
-    {
-      title: "Cruise Ship Environmental Officer",
-      description:
-        "Specialized certification for environmental compliance officers aboard cruise vessels, covering waste management and marine protection.",
-      category: "cruise",
-      level: "Advanced",
-      price: 165,
-      slug: "cruise-ship-environmental-officer",
-    },
-
-    // Digital Hospitality & Technology (12 programs)
-    {
-      title: "Hotel Technology Integration Specialist",
-      description:
-        "Advanced certification in hospitality technology systems, PMS integration, mobile solutions, and guest-facing technology.",
-      category: "it",
-      level: "Advanced",
-      price: 190,
-      slug: "hotel-technology-integration-specialist",
-    },
-    {
-      title: "Hospitality Data Analytics Professional",
-      description:
-        "Comprehensive training in hospitality data analysis, revenue optimization, guest behavior analytics, and predictive modeling.",
-      category: "it",
-      level: "Advanced",
-      price: 185,
-      slug: "hospitality-data-analytics-professional",
-    },
-    {
-      title: "Digital Guest Experience Manager",
-      description:
-        "Certification in managing digital touchpoints, mobile apps, online check-in systems, and digital concierge services.",
-      category: "it",
-      level: "Intermediate",
-      price: 160,
-      slug: "digital-guest-experience-manager",
-    },
-    {
-      title: "Hospitality Cybersecurity Specialist",
-      description:
-        "Specialized training in protecting hospitality systems, guest data security, payment processing security, and cyber threat management.",
-      category: "it",
-      level: "Advanced",
-      price: 195,
-      slug: "hospitality-cybersecurity-specialist",
-    },
-
-    // Wellness & Spa Management (10 programs)
-    {
-      title: "Luxury Spa Management Certification",
-      description:
-        "Comprehensive training in managing high-end spa operations, wellness programs, and therapeutic service delivery.",
-      category: "healthcare",
-      level: "Advanced",
-      price: 180,
-      slug: "luxury-spa-management-certification",
-    },
-    {
-      title: "Wellness Tourism Specialist",
-      description:
-        "Certification in developing and managing wellness tourism programs, retreat planning, and holistic guest experiences.",
-      category: "healthcare",
-      level: "Intermediate",
-      price: 155,
-      slug: "wellness-tourism-specialist",
-    },
-    {
-      title: "Corporate Wellness Program Manager",
-      description:
-        "Training in designing and implementing wellness programs for hospitality employees and corporate clients.",
-      category: "healthcare",
-      level: "Intermediate",
-      price: 145,
-      slug: "corporate-wellness-program-manager",
-    },
-
-    // Event & Conference Management (8 programs)
-    {
-      title: "Luxury Event Planning & Execution",
-      description:
-        "Advanced certification in planning and executing high-end events, weddings, and corporate functions in hospitality settings.",
-      category: "sales",
-      level: "Advanced",
-      price: 175,
-      slug: "luxury-event-planning-execution",
-    },
-    {
-      title: "Conference & Convention Management",
-      description:
-        "Specialized training in managing large-scale conferences, conventions, and business events in hotels and resorts.",
-      category: "sales",
-      level: "Advanced",
-      price: 165,
-      slug: "conference-convention-management",
-    },
-    {
-      title: "Destination Wedding Specialist",
-      description:
-        "Certification in planning and coordinating destination weddings, including vendor management and cultural considerations.",
-      category: "sales",
-      level: "Intermediate",
-      price: 150,
-      slug: "destination-wedding-specialist",
-    },
-
-    // Food & Beverage Advanced (12 programs)
-    {
-      title: "Wine & Beverage Program Management",
-      description:
-        "Advanced certification in wine program development, sommelier services, and beverage cost control for hospitality operations.",
-      category: "frontline",
-      level: "Advanced",
-      price: 165,
-      slug: "wine-beverage-program-management",
-    },
-    {
-      title: "Restaurant Concept Development",
-      description:
-        "Training in creating and launching new restaurant concepts within hotels and resorts, including menu development and branding.",
-      category: "executive",
-      level: "Advanced",
-      price: 180,
-      slug: "restaurant-concept-development",
-    },
-    {
-      title: "Banquet & Catering Excellence",
-      description:
-        "Comprehensive certification in banquet operations, catering services, and large-scale food production management.",
-      category: "frontline",
-      level: "Intermediate",
-      price: 140,
-      slug: "banquet-catering-excellence",
-    },
-    {
-      title: "Culinary Cost Control Specialist",
-      description:
-        "Advanced training in food cost management, inventory control, menu engineering, and kitchen profitability optimization.",
-      category: "business",
-      level: "Advanced",
-      price: 155,
-      slug: "culinary-cost-control-specialist",
-    },
-
-    // International Hospitality (10 programs)
-    {
-      title: "Cross-Cultural Hospitality Management",
-      description:
-        "Certification in managing diverse teams and serving international guests with cultural sensitivity and awareness.",
-      category: "executive",
-      level: "Advanced",
-      price: 170,
-      slug: "cross-cultural-hospitality-management",
-    },
-    {
-      title: "International Hotel Development",
-      description:
-        "Advanced training in expanding hospitality brands internationally, including market analysis and cultural adaptation.",
-      category: "executive",
-      level: "Executive",
-      price: 200,
-      slug: "international-hotel-development",
-    },
-    {
-      title: "Global Tourism Marketing",
-      description:
-        "Certification in marketing hospitality services to international markets, including digital marketing and cultural considerations.",
-      category: "sales",
-      level: "Advanced",
-      price: 165,
-      slug: "global-tourism-marketing",
-    },
-
-    // Specialized Service Areas (15 programs)
-    {
-      title: "Luxury Transportation Services",
-      description:
-        "Training in managing high-end transportation services, including limousine operations, private jet coordination, and VIP transfers.",
-      category: "frontline",
-      level: "Intermediate",
-      price: 125,
-      slug: "luxury-transportation-services",
-    },
-    {
-      title: "Private Club Management",
-      description:
-        "Specialized certification in managing exclusive private clubs, member relations, and premium service delivery.",
-      category: "executive",
-      level: "Advanced",
-      price: 185,
-      slug: "private-club-management",
-    },
-    {
-      title: "Golf & Country Club Operations",
-      description:
-        "Comprehensive training in golf course management, pro shop operations, and country club service excellence.",
-      category: "executive",
-      level: "Advanced",
-      price: 175,
-      slug: "golf-country-club-operations",
-    },
-    {
-      title: "Marina & Yacht Club Management",
-      description:
-        "Specialized certification in managing marina operations, yacht services, and waterfront hospitality facilities.",
-      category: "executive",
-      level: "Advanced",
-      price: 180,
-      slug: "marina-yacht-club-management",
-    },
-    {
-      title: "Casino & Gaming Operations",
-      description:
-        "Advanced training in casino management, gaming regulations, responsible gambling practices, and VIP player services.",
-      category: "executive",
-      level: "Advanced",
-      price: 190,
-      slug: "casino-gaming-operations",
-    },
-
-    // Emergency & Crisis Management (8 programs)
-    {
-      title: "Hospitality Crisis Communication",
-      description:
-        "Certification in crisis communication strategies, media relations, and reputation management during emergencies.",
-      category: "executive",
-      level: "Advanced",
-      price: 160,
-      slug: "hospitality-crisis-communication",
-    },
-    {
-      title: "Emergency Response Coordinator",
-      description:
-        "Training in emergency preparedness, evacuation procedures, and crisis response coordination for hospitality facilities.",
-      category: "admin",
-      level: "Advanced",
-      price: 155,
-      slug: "emergency-response-coordinator",
-    },
-    {
-      title: "Business Continuity Planning",
-      description:
-        "Advanced certification in developing and implementing business continuity plans for hospitality operations.",
-      category: "executive",
-      level: "Executive",
-      price: 175,
-      slug: "business-continuity-planning",
-    },
-
-    // Quality & Standards (6 programs)
-    {
-      title: "Hospitality Quality Assurance Manager",
-      description:
-        "Comprehensive training in quality management systems, service standards, and continuous improvement processes.",
-      category: "admin",
-      level: "Advanced",
-      price: 165,
-      slug: "hospitality-quality-assurance-manager",
-    },
-    {
-      title: "Brand Standards Compliance Officer",
-      description:
-        "Certification in maintaining brand standards, conducting audits, and ensuring consistent service delivery across properties.",
-      category: "admin",
-      level: "Intermediate",
-      price: 145,
-      slug: "brand-standards-compliance-officer",
-    },
-    {
-      title: "Guest Satisfaction Analytics",
-      description:
-        "Training in measuring and analyzing guest satisfaction, implementing feedback systems, and driving service improvements.",
-      category: "business",
-      level: "Intermediate",
-      price: 140,
-      slug: "guest-satisfaction-analytics",
-    },
-  ]
+  // Additional certifications to auto-add (updated with duration)
+  const additionalCertifications = useMemo(
+    () => [
+      {
+        title: "Luxury Resort Management Excellence",
+        description:
+          "Master the art of managing ultra-luxury resorts with focus on personalized service, exclusive amenities, and high-net-worth guest expectations.",
+        category: "executive",
+        level: "Executive",
+        price: 220,
+        slug: "luxury-resort-management-excellence",
+        duration: "12 weeks",
+      },
+      {
+        title: "Boutique Hotel Operations Specialist",
+        description:
+          "Specialized training for managing boutique hotels with emphasis on unique character, personalized service, and local cultural integration.",
+        category: "executive",
+        level: "Advanced",
+        price: 185,
+        slug: "boutique-hotel-operations-specialist",
+        duration: "10 weeks",
+      },
+      {
+        title: "Resort Activities & Recreation Management",
+        description:
+          "Comprehensive training in planning, organizing, and managing recreational activities and entertainment programs at resort destinations.",
+        category: "frontline",
+        level: "Intermediate",
+        price: 135,
+        slug: "resort-activities-recreation-management",
+        duration: "8 weeks",
+      },
+      {
+        title: "Hotel Concierge Excellence Program",
+        description:
+          "Advanced concierge training covering luxury services, local expertise, VIP guest relations, and exclusive experience curation.",
+        category: "frontline",
+        level: "Advanced",
+        price: 155,
+        slug: "hotel-concierge-excellence-program",
+        duration: "6 weeks",
+      },
+      {
+        title: "Hospitality Sustainability Leadership",
+        description:
+          "Executive certification in sustainable hospitality practices, environmental stewardship, and green operations management.",
+        category: "executive",
+        level: "Executive",
+        price: 195,
+        slug: "hospitality-sustainability-leadership",
+        duration: "14 weeks",
+      },
+      {
+        title: "Cruise Ship Bridge Operations",
+        description:
+          "Advanced training for deck officers and bridge personnel in navigation, safety protocols, and maritime operations aboard cruise vessels.",
+        category: "cruise",
+        level: "Advanced",
+        price: 210,
+        slug: "cruise-ship-bridge-operations",
+        duration: "16 weeks",
+      },
+      {
+        title: "Maritime Hotel Services Management",
+        description:
+          "Specialized certification combining maritime regulations with hotel service excellence for cruise ship hospitality managers.",
+        category: "cruise",
+        level: "Advanced",
+        price: 185,
+        slug: "maritime-hotel-services-management",
+        duration: "10 weeks",
+      },
+      {
+        title: "Cruise Ship Culinary Excellence",
+        description:
+          "Advanced culinary certification for cruise ship chefs covering international cuisine, large-scale production, and maritime food safety.",
+        category: "cruise",
+        level: "Advanced",
+        price: 175,
+        slug: "cruise-ship-culinary-excellence",
+        duration: "12 weeks",
+      },
+      {
+        title: "Maritime Guest Experience Design",
+        description:
+          "Training in creating memorable guest experiences aboard cruise ships, including itinerary planning and onboard activity coordination.",
+        category: "cruise",
+        level: "Intermediate",
+        price: 145,
+        slug: "maritime-guest-experience-design",
+        duration: "8 weeks",
+      },
+      {
+        title: "Cruise Ship Environmental Officer",
+        description:
+          "Specialized certification for environmental compliance officers aboard cruise vessels, covering waste management and marine protection.",
+        category: "cruise",
+        level: "Advanced",
+        price: 165,
+        slug: "cruise-ship-environmental-officer",
+        duration: "10 weeks",
+      },
+      {
+        title: "Hotel Technology Integration Specialist",
+        description:
+          "Advanced certification in hospitality technology systems, PMS integration, mobile solutions, and guest-facing technology.",
+        category: "it",
+        level: "Advanced",
+        price: 190,
+        slug: "hotel-technology-integration-specialist",
+        duration: "10 weeks",
+      },
+      {
+        title: "Hospitality Data Analytics Professional",
+        description:
+          "Comprehensive training in hospitality data analysis, revenue optimization, guest behavior analytics, and predictive modeling.",
+        category: "it",
+        level: "Advanced",
+        price: 185,
+        slug: "hospitality-data-analytics-professional",
+        duration: "12 weeks",
+      },
+      {
+        title: "Digital Guest Experience Manager",
+        description:
+          "Certification in managing digital touchpoints, mobile apps, online check-in systems, and digital concierge services.",
+        category: "it",
+        level: "Intermediate",
+        price: 160,
+        slug: "digital-guest-experience-manager",
+        duration: "8 weeks",
+      },
+      {
+        title: "Hospitality Cybersecurity Specialist",
+        description:
+          "Specialized training in protecting hospitality systems, guest data security, payment processing security, and cyber threat management.",
+        category: "it",
+        level: "Advanced",
+        price: 195,
+        slug: "hospitality-cybersecurity-specialist",
+        duration: "14 weeks",
+      },
+      {
+        title: "Luxury Spa Management Certification",
+        description:
+          "Comprehensive training in managing high-end spa operations, wellness programs, and therapeutic service delivery.",
+        category: "healthcare",
+        level: "Advanced",
+        price: 180,
+        slug: "luxury-spa-management-certification",
+        duration: "10 weeks",
+      },
+      {
+        title: "Wellness Tourism Specialist",
+        description:
+          "Certification in developing and managing wellness tourism programs, retreat planning, and holistic guest experiences.",
+        category: "healthcare",
+        level: "Intermediate",
+        price: 155,
+        slug: "wellness-tourism-specialist",
+        duration: "8 weeks",
+      },
+      {
+        title: "Corporate Wellness Program Manager",
+        description:
+          "Training in designing and implementing wellness programs for hospitality employees and corporate clients.",
+        category: "healthcare",
+        level: "Intermediate",
+        price: 145,
+        slug: "corporate-wellness-program-manager",
+        duration: "6 weeks",
+      },
+      {
+        title: "Luxury Event Planning & Execution",
+        description:
+          "Advanced certification in planning and executing high-end events, weddings, and corporate functions in hospitality settings.",
+        category: "sales",
+        level: "Advanced",
+        price: 175,
+        slug: "luxury-event-planning-execution",
+        duration: "10 weeks",
+      },
+      {
+        title: "Conference & Convention Management",
+        description:
+          "Specialized training in managing large-scale conferences, conventions, and business events in hotels and resorts.",
+        category: "sales",
+        level: "Advanced",
+        price: 165,
+        slug: "conference-convention-management",
+        duration: "12 weeks",
+      },
+      {
+        title: "Destination Wedding Specialist",
+        description:
+          "Certification in planning and coordinating destination weddings, including vendor management and cultural considerations.",
+        category: "sales",
+        level: "Intermediate",
+        price: 150,
+        slug: "destination-wedding-specialist",
+        duration: "8 weeks",
+      },
+      {
+        title: "Wine & Beverage Program Management",
+        description:
+          "Advanced certification in wine program development, sommelier services, and beverage cost control for hospitality operations.",
+        category: "frontline",
+        level: "Advanced",
+        price: 165,
+        slug: "wine-beverage-program-management",
+        duration: "10 weeks",
+      },
+      {
+        title: "Restaurant Concept Development",
+        description:
+          "Training in creating and launching new restaurant concepts within hotels and resorts, including menu development and branding.",
+        category: "executive",
+        level: "Advanced",
+        price: 180,
+        slug: "restaurant-concept-development",
+        duration: "12 weeks",
+      },
+      {
+        title: "Banquet & Catering Excellence",
+        description:
+          "Comprehensive certification in banquet operations, catering services, and large-scale food production management.",
+        category: "frontline",
+        level: "Intermediate",
+        price: 140,
+        slug: "banquet-catering-excellence",
+        duration: "8 weeks",
+      },
+      {
+        title: "Culinary Cost Control Specialist",
+        description:
+          "Advanced training in food cost management, inventory control, menu engineering, and kitchen profitability optimization.",
+        category: "business",
+        level: "Advanced",
+        price: 155,
+        slug: "culinary-cost-control-specialist",
+        duration: "10 weeks",
+      },
+      {
+        title: "Cross-Cultural Hospitality Management",
+        description:
+          "Certification in managing diverse teams and serving international guests with cultural sensitivity and awareness.",
+        category: "executive",
+        level: "Advanced",
+        price: 170,
+        slug: "cross-cultural-hospitality-management",
+        duration: "8 weeks",
+      },
+      {
+        title: "International Hotel Development",
+        description:
+          "Advanced training in expanding hospitality brands internationally, including market analysis and cultural adaptation.",
+        category: "executive",
+        level: "Executive",
+        price: 200,
+        slug: "international-hotel-development",
+        duration: "16 weeks",
+      },
+      {
+        title: "Global Tourism Marketing",
+        description:
+          "Certification in marketing hospitality services to international markets, including digital marketing and cultural considerations.",
+        category: "sales",
+        level: "Advanced",
+        price: 165,
+        slug: "global-tourism-marketing",
+        duration: "10 weeks",
+      },
+      {
+        title: "Luxury Transportation Services",
+        description:
+          "Training in managing high-end transportation services, including limousine operations, private jet coordination, and VIP transfers.",
+        category: "frontline",
+        level: "Intermediate",
+        price: 125,
+        slug: "luxury-transportation-services",
+        duration: "6 weeks",
+      },
+      {
+        title: "Private Club Management",
+        description:
+          "Specialized certification in managing exclusive private clubs, member relations, and premium service delivery.",
+        category: "executive",
+        level: "Advanced",
+        price: 185,
+        slug: "private-club-management",
+        duration: "12 weeks",
+      },
+      {
+        title: "Golf & Country Club Operations",
+        description:
+          "Comprehensive training in golf course management, pro shop operations, and country club service excellence.",
+        category: "executive",
+        level: "Advanced",
+        price: 175,
+        slug: "golf-country-club-operations",
+        duration: "10 weeks",
+      },
+      {
+        title: "Marina & Yacht Club Management",
+        description:
+          "Specialized certification in managing marina operations, yacht services, and waterfront hospitality facilities.",
+        category: "executive",
+        level: "Advanced",
+        price: 180,
+        slug: "marina-yacht-club-management",
+        duration: "10 weeks",
+      },
+      {
+        title: "Casino & Gaming Operations",
+        description:
+          "Advanced training in casino management, gaming regulations, responsible gambling practices, and VIP player services.",
+        category: "executive",
+        level: "Advanced",
+        price: 190,
+        slug: "casino-gaming-operations",
+        duration: "14 weeks",
+      },
+      {
+        title: "Hospitality Crisis Communication",
+        description:
+          "Certification in crisis communication strategies, media relations, and reputation management during emergencies.",
+        category: "executive",
+        level: "Advanced",
+        price: 160,
+        slug: "hospitality-crisis-communication",
+        duration: "8 weeks",
+      },
+      {
+        title: "Emergency Response Coordinator",
+        description:
+          "Training in emergency preparedness, evacuation procedures, and crisis response coordination for hospitality facilities.",
+        category: "admin",
+        level: "Advanced",
+        price: 155,
+        slug: "emergency-response-coordinator",
+        duration: "6 weeks",
+      },
+      {
+        title: "Business Continuity Planning",
+        description:
+          "Advanced certification in developing and implementing business continuity plans for hospitality operations.",
+        category: "executive",
+        level: "Executive",
+        price: 175,
+        slug: "business-continuity-planning",
+        duration: "10 weeks",
+      },
+      {
+        title: "Hospitality Quality Assurance Manager",
+        description:
+          "Comprehensive training in quality management systems, service standards, and continuous improvement processes.",
+        category: "admin",
+        level: "Advanced",
+        price: 165,
+        slug: "hospitality-quality-assurance-manager",
+        duration: "10 weeks",
+      },
+      {
+        title: "Brand Standards Compliance Officer",
+        description:
+          "Certification in maintaining brand standards, conducting audits, and ensuring consistent service delivery across properties.",
+        category: "admin",
+        level: "Intermediate",
+        price: 145,
+        slug: "brand-standards-compliance-officer",
+        duration: "8 weeks",
+      },
+      {
+        title: "Guest Satisfaction Analytics",
+        description:
+          "Training in measuring and analyzing guest satisfaction, implementing feedback systems, and driving service improvements.",
+        category: "business",
+        level: "Intermediate",
+        price: 140,
+        slug: "guest-satisfaction-analytics",
+        duration: "8 weeks",
+      },
+    ],
+    [],
+  )
 
   const setupDatabase = async () => {
     setSetupStatus("loading")
@@ -597,6 +701,42 @@ export default function SetupPage() {
     }
   }
 
+  const fetchUsers = async () => {
+    setLoadingUsers(true)
+    try {
+      const response = await fetch("/api/users")
+      const data = await response.json()
+      if (data.users) {
+        setUsers(data.users)
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const fetchModulesAndLessons = async (certId: string) => {
+    setLoadingContent(true)
+    try {
+      const modulesResponse = await fetch(`/api/modules?certification_id=${certId}`)
+      const modulesData = await modulesResponse.json()
+      setModules(modulesData.modules || [])
+
+      const allLessons: Lesson[] = []
+      for (const module of modulesData.modules || []) {
+        const lessonsResponse = await fetch(`/api/lessons?module_id=${module.id}`)
+        const lessonsData = await lessonsResponse.json()
+        allLessons.push(...(lessonsData.lessons || []))
+      }
+      setLessons(allLessons)
+    } catch (error) {
+      console.error("Error fetching modules/lessons:", error)
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
   const handleSaveCertification = async () => {
     try {
       const method = editingCertification ? "PUT" : "POST"
@@ -619,6 +759,7 @@ export default function SetupPage() {
           level: "",
           price: 0,
           slug: "",
+          duration: "",
         })
       }
     } catch (error) {
@@ -627,7 +768,11 @@ export default function SetupPage() {
   }
 
   const handleDeleteCertification = async (id: string) => {
-    if (confirm("Are you sure you want to delete this certification?")) {
+    if (
+      confirm(
+        "Are you sure you want to delete this certification? This will also delete associated modules and lessons.",
+      )
+    ) {
       try {
         const response = await fetch(`/api/certifications?id=${id}`, {
           method: "DELETE",
@@ -652,13 +797,162 @@ export default function SetupPage() {
 
       if (response.ok) {
         fetchApplications()
+      } else {
+        const errorData = await response.json()
+        console.error("Failed to update application status:", errorData.error)
+        alert(`Failed to update application status: ${errorData.error || response.statusText}`)
       }
     } catch (error) {
       console.error("Error updating application:", error)
+      alert("An error occurred while updating application status.")
     }
   }
 
-  const openEditDialog = (certification: Certification) => {
+  const handleAssignCourse = async () => {
+    if (!selectedUserForAssignment || !assignCourseForm.certificationId) return
+
+    try {
+      const response = await fetch("/api/user-enrollments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedUserForAssignment.id,
+          certificationId: assignCourseForm.certificationId,
+          dueDate: assignCourseForm.dueDate.toISOString(),
+        }),
+      })
+
+      if (response.ok) {
+        fetchUsers() // Refresh users list to show new enrollment
+        setIsAssigningCourse(false)
+        setAssignCourseForm({ certificationId: "", dueDate: new Date() })
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to assign course: ${errorData.error || response.statusText}`)
+      }
+    } catch (error) {
+      console.error("Error assigning course:", error)
+      alert("An error occurred while assigning the course.")
+    }
+  }
+
+  const handleUpdateEnrollment = async (enrollmentId: string, updates: Partial<UserEnrollment>) => {
+    try {
+      const response = await fetch("/api/user-enrollments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: enrollmentId, ...updates }),
+      })
+
+      if (response.ok) {
+        fetchUsers() // Refresh users list
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to update enrollment: ${errorData.error || response.statusText}`)
+      }
+    } catch (error) {
+      console.error("Error updating enrollment:", error)
+      alert("An error occurred while updating enrollment.")
+    }
+  }
+
+  const handleSaveModule = async () => {
+    if (!selectedCertForContent) return
+    try {
+      const method = editingModule ? "PUT" : "POST"
+      const body = editingModule
+        ? { ...moduleForm, id: editingModule.id }
+        : { ...moduleForm, certification_id: selectedCertForContent }
+
+      const response = await fetch("/api/modules", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      if (response.ok) {
+        fetchModulesAndLessons(selectedCertForContent)
+        setIsAddingModule(false)
+        setEditingModule(null)
+        setModuleForm({ title: "", description: "", order_num: 0 })
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to save module: ${errorData.error || response.statusText}`)
+      }
+    } catch (error) {
+      console.error("Error saving module:", error)
+      alert("An error occurred while saving the module.")
+    }
+  }
+
+  const handleDeleteModule = async (id: string) => {
+    if (confirm("Are you sure you want to delete this module? This will also delete all associated lessons.")) {
+      try {
+        const response = await fetch(`/api/modules?id=${id}`, {
+          method: "DELETE",
+        })
+        if (response.ok) {
+          fetchModulesAndLessons(selectedCertForContent)
+        } else {
+          const errorData = await response.json()
+          alert(`Failed to delete module: ${errorData.error || response.statusText}`)
+        }
+      } catch (error) {
+        console.error("Error deleting module:", error)
+        alert("An error occurred while deleting the module.")
+      }
+    }
+  }
+
+  const handleSaveLesson = async () => {
+    if (!selectedModuleForLesson) return
+    try {
+      const method = editingLesson ? "PUT" : "POST"
+      const body = editingLesson
+        ? { ...lessonForm, id: editingLesson.id }
+        : { ...lessonForm, module_id: selectedModuleForLesson.id }
+
+      const response = await fetch("/api/lessons", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      if (response.ok) {
+        fetchModulesAndLessons(selectedCertForContent)
+        setIsAddingLesson(false)
+        setEditingLesson(null)
+        setLessonForm({ title: "", content: "", order_num: 0 })
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to save lesson: ${errorData.error || response.statusText}`)
+      }
+    } catch (error) {
+      console.error("Error saving lesson:", error)
+      alert("An error occurred while saving the lesson.")
+    }
+  }
+
+  const handleDeleteLesson = async (id: string) => {
+    if (confirm("Are you sure you want to delete this lesson?")) {
+      try {
+        const response = await fetch(`/api/lessons?id=${id}`, {
+          method: "DELETE",
+        })
+        if (response.ok) {
+          fetchModulesAndLessons(selectedCertForContent)
+        } else {
+          const errorData = await response.json()
+          alert(`Failed to delete lesson: ${errorData.error || response.statusText}`)
+        }
+      } catch (error) {
+        console.error("Error deleting lesson:", error)
+        alert("An error occurred while deleting the lesson.")
+      }
+    }
+  }
+
+  const openEditCertificationDialog = (certification: Certification) => {
     setEditingCertification(certification)
     setCertificationForm({
       title: certification.title,
@@ -667,10 +961,11 @@ export default function SetupPage() {
       level: certification.level,
       price: certification.price,
       slug: certification.slug,
+      duration: certification.duration || "",
     })
   }
 
-  const openAddDialog = () => {
+  const openAddCertificationDialog = () => {
     setIsAddingCertification(true)
     setEditingCertification(null)
     setCertificationForm({
@@ -680,13 +975,66 @@ export default function SetupPage() {
       level: "",
       price: 0,
       slug: "",
+      duration: "",
     })
+  }
+
+  const openAssignCourseDialog = (user: User) => {
+    setSelectedUserForAssignment(user)
+    setIsAssigningCourse(true)
+    setAssignCourseForm({ certificationId: "", dueDate: new Date() })
+  }
+
+  const openAddModuleDialog = () => {
+    setIsAddingModule(true)
+    setEditingModule(null)
+    setModuleForm({ title: "", description: "", order_num: modules.length + 1 })
+  }
+
+  const openEditModuleDialog = (module: Module) => {
+    setEditingModule(module)
+    setIsAddingModule(true)
+    setModuleForm({
+      title: module.title,
+      description: module.description || "",
+      order_num: module.order_num,
+    })
+  }
+
+  const openAddLessonDialog = (module: Module) => {
+    setSelectedModuleForLesson(module)
+    setIsAddingLesson(true)
+    setEditingLesson(null)
+    setLessonForm({ title: "", content: "", order_num: lessons.filter((l) => l.module_id === module.id).length + 1 })
+  }
+
+  const openEditLessonDialog = (lesson: Lesson) => {
+    setEditingLesson(lesson)
+    setIsAddingLesson(true)
+    setLessonForm({
+      title: lesson.title,
+      content: lesson.content || "",
+      order_num: lesson.order_num,
+    })
+    // Find the parent module to set selectedModuleForLesson
+    const parentModule = modules.find((m) => m.id === lesson.module_id)
+    if (parentModule) setSelectedModuleForLesson(parentModule)
   }
 
   useEffect(() => {
     fetchCertifications()
     fetchApplications()
+    fetchUsers()
   }, [])
+
+  useEffect(() => {
+    if (selectedCertForContent) {
+      fetchModulesAndLessons(selectedCertForContent)
+    } else {
+      setModules([])
+      setLessons([])
+    }
+  }, [selectedCertForContent])
 
   const certificationCategories = [
     { name: "Cruise & Maritime", count: 25, icon: Ship, color: "bg-blue-500" },
@@ -710,7 +1058,9 @@ export default function SetupPage() {
         </div>
 
         <Tabs defaultValue="setup" className="space-y-8">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
+            {" "}
+            {/* Increased grid columns */}
             <TabsTrigger value="setup" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               Setup
@@ -719,14 +1069,26 @@ export default function SetupPage() {
               <BookOpen className="h-4 w-4" />
               Certifications
             </TabsTrigger>
+            <TabsTrigger value="course-content" className="flex items-center gap-2">
+              {" "}
+              {/* New Tab */}
+              <FileText className="h-4 w-4" />
+              Course Content
+            </TabsTrigger>
             <TabsTrigger value="applications" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Applications
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              {" "}
+              {/* New Tab */}
+              <Users className="h-4 w-4" />
+              Users
+            </TabsTrigger>
+            {/* <TabsTrigger value="analytics" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Analytics
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
 
           {/* Setup Tab */}
@@ -967,7 +1329,7 @@ export default function SetupPage() {
                   <Download className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                <Button onClick={openAddDialog} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={openAddCertificationDialog} className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Certification
                 </Button>
@@ -997,10 +1359,11 @@ export default function SetupPage() {
                               <Badge variant="secondary">{cert.category}</Badge>
                               <Badge variant="outline">{cert.level}</Badge>
                               <Badge variant="outline">${cert.price}</Badge>
+                              {cert.duration && <Badge variant="outline">{cert.duration}</Badge>}
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditDialog(cert)}>
+                            <Button variant="outline" size="sm" onClick={() => openEditCertificationDialog(cert)}>
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => handleDeleteCertification(cert.id)}>
@@ -1009,6 +1372,104 @@ export default function SetupPage() {
                           </div>
                         </div>
                       ))
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Course Content Tab */}
+          <TabsContent value="course-content" className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-900">Manage Course Content</h2>
+            <Card className="bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle>Select Certification</CardTitle>
+                <CardDescription>Choose a certification to manage its modules and lessons.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Select value={selectedCertForContent} onValueChange={setSelectedCertForContent}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a certification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {certifications.map((cert) => (
+                      <SelectItem key={cert.id} value={cert.id}>
+                        {cert.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {selectedCertForContent && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-semibold">Modules</h3>
+                      <Button onClick={openAddModuleDialog} size="sm">
+                        <Plus className="h-4 w-4 mr-2" /> Add Module
+                      </Button>
+                    </div>
+                    {loadingContent ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : modules.length === 0 ? (
+                      <div className="text-center py-8 text-gray-600">No modules for this certification.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {modules.map((module) => (
+                          <Card key={module.id} className="p-4">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-medium">
+                                {module.order_num}. {module.title}
+                              </h4>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openEditModuleDialog(module)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteModule(module.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">{module.description}</p>
+
+                            <div className="flex justify-between items-center mt-4">
+                              <h5 className="text-md font-semibold">Lessons</h5>
+                              <Button variant="secondary" size="sm" onClick={() => openAddLessonDialog(module)}>
+                                <Plus className="h-4 w-4 mr-2" /> Add Lesson
+                              </Button>
+                            </div>
+                            {lessons.filter((l) => l.module_id === module.id).length === 0 ? (
+                              <p className="text-sm text-gray-500 mt-2">No lessons in this module.</p>
+                            ) : (
+                              <ul className="list-disc list-inside space-y-1 mt-2">
+                                {lessons
+                                  .filter((l) => l.module_id === module.id)
+                                  .sort((a, b) => a.order_num - b.order_num)
+                                  .map((lesson) => (
+                                    <li
+                                      key={lesson.id}
+                                      className="flex justify-between items-center text-sm text-gray-700"
+                                    >
+                                      <span>
+                                        {lesson.order_num}. {lesson.title}
+                                      </span>
+                                      <div className="flex gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => openEditLessonDialog(lesson)}>
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => handleDeleteLesson(lesson.id)}>
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1092,18 +1553,24 @@ export default function SetupPage() {
                                         <Label>Program</Label>
                                         <p>{app.program_name}</p>
                                       </div>
+                                      <div>
+                                        <Label>Status</Label>
+                                        <p>{app.status}</p>
+                                      </div>
                                     </div>
                                   </div>
                                   <DialogFooter className="gap-2">
                                     <Button
                                       onClick={() => handleUpdateApplicationStatus(app.id, "approved")}
                                       className="bg-green-600 hover:bg-green-700"
+                                      disabled={app.status === "approved"}
                                     >
                                       Approve
                                     </Button>
                                     <Button
                                       onClick={() => handleUpdateApplicationStatus(app.id, "rejected")}
                                       variant="destructive"
+                                      disabled={app.status === "rejected"}
                                     >
                                       Reject
                                     </Button>
@@ -1121,7 +1588,263 @@ export default function SetupPage() {
             </Card>
           </TabsContent>
 
-          {/* Analytics Tab */}
+          {/* Users Tab */}
+          <TabsContent value="users" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold text-gray-900">Registered Users</h2>
+              <Button onClick={fetchUsers} variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+
+            <Card className="bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-6">
+                {loadingUsers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {users.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                        <p className="text-gray-600">No registered users found.</p>
+                      </div>
+                    ) : (
+                      users.map((user) => (
+                        <div key={user.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <h3 className="font-semibold text-lg">{user.email}</h3>
+                              <p className="text-gray-600 text-sm">
+                                Registered: {new Date(user.created_at).toLocaleDateString()}
+                              </p>
+                              {user.last_sign_in_at && (
+                                <p className="text-gray-500 text-xs">
+                                  Last Sign In: {new Date(user.last_sign_in_at).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" onClick={() => openAssignCourseDialog(user)}>
+                                  <Plus className="h-4 w-4 mr-2" /> Assign Course
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Assign Course to {selectedUserForAssignment?.email}</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="assign-certification">Certification</Label>
+                                    <Select
+                                      value={assignCourseForm.certificationId}
+                                      onValueChange={(value) =>
+                                        setAssignCourseForm({ ...assignCourseForm, certificationId: value })
+                                      }
+                                    >
+                                      <SelectTrigger id="assign-certification">
+                                        <SelectValue placeholder="Select a certification" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {certifications.map((cert) => (
+                                          <SelectItem key={cert.id} value={cert.id}>
+                                            {cert.title}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="due-date">Due Date</Label>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant={"outline"}
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !assignCourseForm.dueDate && "text-muted-foreground",
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-2 h-4 w-4" />
+                                          {assignCourseForm.dueDate ? (
+                                            format(assignCourseForm.dueDate, "PPP")
+                                          ) : (
+                                            <span>Pick a date</span>
+                                          )}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                          mode="single"
+                                          selected={assignCourseForm.dueDate}
+                                          onSelect={(date) =>
+                                            date && setAssignCourseForm({ ...assignCourseForm, dueDate: date })
+                                          }
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button onClick={handleAssignCourse} disabled={!assignCourseForm.certificationId}>
+                                    Assign Course
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                          {user.enrollments.length > 0 && (
+                            <div className="mt-4">
+                              <h4 className="font-semibold text-md mb-2">Enrolled Courses:</h4>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Course</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Progress</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead>Certificate</TableHead>
+                                    <TableHead>Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {user.enrollments.map((enrollment) => (
+                                    <TableRow key={enrollment.id}>
+                                      <TableCell>{enrollment.certifications?.title || "N/A"}</TableCell>
+                                      <TableCell>{enrollment.status}</TableCell>
+                                      <TableCell>{enrollment.progress}%</TableCell>
+                                      <TableCell>
+                                        {enrollment.due_date ? format(new Date(enrollment.due_date), "PPP") : "N/A"}
+                                      </TableCell>
+                                      <TableCell>
+                                        {enrollment.certificate_issued ? (
+                                          <Badge className="bg-green-500">Issued</Badge>
+                                        ) : (
+                                          <Badge variant="outline">Pending</Badge>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="flex gap-2">
+                                        <Dialog>
+                                          <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                          </DialogTrigger>
+                                          <DialogContent className="max-w-md">
+                                            <DialogHeader>
+                                              <DialogTitle>Edit Enrollment</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="space-y-4">
+                                              <div>
+                                                <Label htmlFor="edit-status">Status</Label>
+                                                <Select
+                                                  value={enrollment.status}
+                                                  onValueChange={(value) =>
+                                                    handleUpdateEnrollment(enrollment.id, { status: value })
+                                                  }
+                                                >
+                                                  <SelectTrigger id="edit-status">
+                                                    <SelectValue placeholder="Select status" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="not_started">Not Started</SelectItem>
+                                                    <SelectItem value="in_progress">In Progress</SelectItem>
+                                                    <SelectItem value="completed">Completed</SelectItem>
+                                                    <SelectItem value="suspended">Suspended</SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="edit-progress">Progress</Label>
+                                                <Input
+                                                  id="edit-progress"
+                                                  type="number"
+                                                  value={enrollment.progress}
+                                                  onChange={(e) =>
+                                                    handleUpdateEnrollment(enrollment.id, {
+                                                      progress: Number(e.target.value),
+                                                    })
+                                                  }
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="edit-due-date">Due Date</Label>
+                                                <Popover>
+                                                  <PopoverTrigger asChild>
+                                                    <Button
+                                                      variant={"outline"}
+                                                      className={cn(
+                                                        "w-full justify-start text-left font-normal",
+                                                        !enrollment.due_date && "text-muted-foreground",
+                                                      )}
+                                                    >
+                                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                                      {enrollment.due_date ? (
+                                                        format(new Date(enrollment.due_date), "PPP")
+                                                      ) : (
+                                                        <span>Pick a date</span>
+                                                      )}
+                                                    </Button>
+                                                  </PopoverTrigger>
+                                                  <PopoverContent className="w-auto p-0">
+                                                    <Calendar
+                                                      mode="single"
+                                                      selected={
+                                                        enrollment.due_date ? new Date(enrollment.due_date) : undefined
+                                                      }
+                                                      onSelect={(date) =>
+                                                        date &&
+                                                        handleUpdateEnrollment(enrollment.id, {
+                                                          due_date: date.toISOString(),
+                                                        })
+                                                      }
+                                                      initialFocus
+                                                    />
+                                                  </PopoverContent>
+                                                </Popover>
+                                              </div>
+                                              {enrollment.status === "completed" && (
+                                                <div>
+                                                  <Label htmlFor="issue-certificate">Issue Certificate</Label>
+                                                  <Button
+                                                    onClick={() =>
+                                                      handleUpdateEnrollment(enrollment.id, {
+                                                        certificate_issued: !enrollment.certificate_issued,
+                                                      })
+                                                    }
+                                                    className="w-full"
+                                                    variant={enrollment.certificate_issued ? "secondary" : "default"}
+                                                  >
+                                                    {enrollment.certificate_issued
+                                                      ? "Revoke Certificate"
+                                                      : "Issue Certificate"}
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </DialogContent>
+                                        </Dialog>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Analytics Tab (kept for structure, but not expanded here) */}
           <TabsContent value="analytics" className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h2>
 
@@ -1269,11 +1992,114 @@ export default function SetupPage() {
                   />
                 </div>
               </div>
+              <div>
+                <Label htmlFor="duration">Duration (e.g., "8 weeks", "120 hours")</Label>
+                <Input
+                  id="duration"
+                  value={certificationForm.duration}
+                  onChange={(e) => setCertificationForm({ ...certificationForm, duration: e.target.value })}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleSaveCertification}>
                 {editingCertification ? "Update" : "Create"} Certification
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Module Form Dialog */}
+        <Dialog
+          open={isAddingModule}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddingModule(false)
+              setEditingModule(null)
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingModule ? "Edit Module" : "Add New Module"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="module-title">Title</Label>
+                <Input
+                  id="module-title"
+                  value={moduleForm.title}
+                  onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="module-description">Description</Label>
+                <Textarea
+                  id="module-description"
+                  value={moduleForm.description}
+                  onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="module-order">Order Number</Label>
+                <Input
+                  id="module-order"
+                  type="number"
+                  value={moduleForm.order_num}
+                  onChange={(e) => setModuleForm({ ...moduleForm, order_num: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveModule}>{editingModule ? "Update" : "Create"} Module</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Lesson Form Dialog */}
+        <Dialog
+          open={isAddingLesson}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddingLesson(false)
+              setEditingLesson(null)
+              setSelectedModuleForLesson(null)
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingLesson ? "Edit Lesson" : "Add New Lesson"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="lesson-title">Title</Label>
+                <Input
+                  id="lesson-title"
+                  value={lessonForm.title}
+                  onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="lesson-content">Content</Label>
+                <Textarea
+                  id="lesson-content"
+                  value={lessonForm.content}
+                  onChange={(e) => setLessonForm({ ...lessonForm, content: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="lesson-order">Order Number</Label>
+                <Input
+                  id="lesson-order"
+                  type="number"
+                  value={lessonForm.order_num}
+                  onChange={(e) => setLessonForm({ ...lessonForm, order_num: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveLesson}>{editingLesson ? "Update" : "Create"} Lesson</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
