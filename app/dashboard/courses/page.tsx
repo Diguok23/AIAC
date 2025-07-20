@@ -20,6 +20,7 @@ interface Course {
   progress: number
   status: string
   last_accessed: string
+  duration: string | null // Added duration
 }
 
 export default function CoursesPage() {
@@ -43,34 +44,37 @@ export default function CoursesPage() {
         }
 
         const { data, error } = await supabase
-          .from("user_courses")
+          .from("user_enrollments") // Changed from user_courses
           .select(`
-            course_id,
+            certification_id,
             progress,
             status,
-            last_accessed,
-            certifications:course_id(
+            started_at,
+            completed_at,
+            certifications:certification_id(
               id,
               title,
               description,
               category,
-              level
+              level,
+              duration
             )
           `)
           .eq("user_id", session.user.id)
-          .order("last_accessed", { ascending: false })
+          .order("started_at", { ascending: false }) // Order by started_at
 
         if (error) throw error
 
         const formattedCourses = data.map((item) => ({
-          id: item.course_id,
+          id: item.certification_id,
           title: item.certifications.title,
           description: item.certifications.description,
           category: item.certifications.category,
           level: item.certifications.level,
+          duration: item.certifications.duration,
           progress: item.progress,
           status: item.status,
-          last_accessed: item.last_accessed,
+          last_accessed: item.started_at || item.completed_at || "", // Use started_at or completed_at
         }))
 
         setCourses(formattedCourses)
@@ -171,11 +175,11 @@ export default function CoursesPage() {
                 <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <div className="flex items-center">
                     <BookOpen className="h-3 w-3 mr-1" />
-                    <span>5 modules</span>
+                    <span>5 modules</span> {/* Placeholder, ideally fetched */}
                   </div>
                   <div className="flex items-center">
                     <Clock className="h-3 w-3 mr-1" />
-                    <span>10 hours</span>
+                    <span>{course.duration || "N/A"}</span>
                   </div>
                 </div>
               </CardContent>
@@ -212,7 +216,7 @@ export default function CoursesPage() {
               <p className="text-gray-500 max-w-md mx-auto">
                 We couldn't find any courses matching "{searchQuery}". Try a different search term.
               </p>
-              <Button variant="outline" className="mt-4" onClick={() => setSearchQuery("")}>
+              <Button variant="outline" className="mt-4 bg-transparent" onClick={() => setSearchQuery("")}>
                 Clear Search
               </Button>
             </>

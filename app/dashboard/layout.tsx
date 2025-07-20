@@ -7,6 +7,8 @@ import { createSupabaseClient } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import DashboardSidebar from "@/components/dashboard-sidebar"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar" // Import Sidebar components
+import { Separator } from "@/components/ui/separator"
 
 export default function DashboardLayout({
   children,
@@ -112,12 +114,16 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <DashboardHeader user={user} />
-      <div className="flex">
-        <DashboardSidebar />
+    <SidebarProvider>
+      <DashboardSidebar /> {/* This is the actual sidebar component */}
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <DashboardHeader user={user} /> {/* Your existing header component */}
+        </header>
         <main className="flex-1 p-6">{children}</main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

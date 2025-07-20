@@ -67,6 +67,7 @@ export default function CourseDetailPage() {
             certification_id,
             progress,
             status,
+            started_at,
             certifications:certification_id(
               id,
               title,
@@ -295,9 +296,9 @@ export default function CourseDetailPage() {
 
   return (
     <div className="container py-8">
-      <Button variant="ghost" className="mb-6" onClick={() => router.push("/dashboard/certifications")}>
+      <Button variant="ghost" className="mb-6" onClick={() => router.push("/dashboard/courses")}>
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Certifications
+        Back to My Courses
       </Button>
 
       <div className="mb-8">
