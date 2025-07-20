@@ -49,14 +49,6 @@ import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useRouter, useSearchParams } from "next/navigation"
 
-interface Application {
-  id: string
-  program_name: string
-  status: "pending" | "approved" | "rejected"
-  created_at: string
-  certification_id?: string
-}
-
 interface Enrollment {
   id: string
   certification_id: string
@@ -69,21 +61,17 @@ interface Enrollment {
   certificate_issued: boolean
   certificate_url: string | null
   certifications: {
-    title: string
-    category: string
-    level: string
+    id: string // Added id to match the database type
+    name: string
     description: string
     duration_days: number | null
+    price: number
   }
 }
 
 interface DashboardStats {
-  totalApplications: number
-  pendingApplications: number
-  approvedApplications: number
-  rejectedApplications: number
-  activeCourses: number
-  completedCourses: number
+  activeEnrollments: number
+  completedEnrollments: number
   totalProgress: number
 }
 
@@ -109,6 +97,7 @@ interface Module {
   description: string | null
   order_index: number
   lessons: Lesson[]
+  completed?: boolean // Added for client-side tracking
 }
 
 interface Lesson {
@@ -124,20 +113,16 @@ export default function DashboardPage() {
   const activeTab = searchParams.get("tab") || "overview"
 
   const [user, setUser] = useState<any>(null)
-  const [applications, setApplications] = useState<Application[]>([])
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null) // State for user profile
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [stats, setStats] = useState<DashboardStats>({
-    totalApplications: 0,
-    pendingApplications: 0,
-    approvedApplications: 0,
-    rejectedApplications: 0,
-    activeCourses: 0,
-    completedCourses: 0,
+    activeEnrollments: 0,
+    completedEnrollments: 0,
     totalProgress: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedCourseForLearning, setSelectedCourseForLearning] = useState<Enrollment | null>(null)
-  const [selectedCourseModules, setSelectedCourseModules] = useState<Module[]>([])
+  const [selectedEnrollmentForLearning, setSelectedEnrollmentForLearning] = useState<Enrollment | null>(null)
+  const [selectedEnrollmentModules, setSelectedEnrollmentModules] = useState<Module[]>([])
   const [isUpdatingModule, setIsUpdatingModule] = useState(false)
 
   // Admin states
@@ -177,31 +162,21 @@ export default function DashboardPage() {
 
       setUser(currentUser)
 
-      // Fetch user profile to check admin status
-      const { data: profile, error: profileError } = await supabase
+      // Fetch user profile to check admin status and get full_name
+      const { data: profileData, error: profileError } = await supabase
         .from("user_profiles")
-        .select("is_admin")
+        .select("is_admin, full_name, email, user_id, id")
         .eq("user_id", currentUser.id)
         .single()
 
-      if (profileError) {
+      if (profileError && profileError.code !== "PGRST116") {
         console.error("Error fetching user profile:", profileError)
         setIsAdmin(false)
+        setUserProfile(null)
       } else {
-        setIsAdmin(profile?.is_admin || false)
+        setIsAdmin(profileData?.is_admin || false)
+        setUserProfile(profileData || null)
       }
-
-      // Fetch user's applications
-      const { data: applicationsData, error: applicationsError } = await supabase
-        .from("applications")
-        .select("*")
-        .eq("email", currentUser.email)
-        .order("created_at", { ascending: false })
-
-      if (applicationsError) {
-        console.error("Error fetching applications:", applicationsError)
-      }
-      setApplications(applicationsData || [])
 
       // Fetch user's course enrollments
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
@@ -225,7 +200,7 @@ export default function DashboardPage() {
             price
           )
         `)
-        .eq("user_id", currentUser.id)
+        .eq("user_id", currentUser.id) // This line filters enrollments by the logged-in user's ID
         .order("created_at", { ascending: false })
 
       if (enrollmentsError) {
@@ -234,13 +209,12 @@ export default function DashboardPage() {
       setEnrollments(enrollmentsData || [])
 
       // Calculate stats
-      const totalApplications = (applicationsData || []).length
-      const pendingApplications = (applicationsData || []).filter((app) => app.status === "pending").length
-      const approvedApplications = (applicationsData || []).filter((app) => app.status === "approved").length
-      const rejectedApplications = (applicationsData || []).filter((app) => app.status === "rejected").length
-
-      const activeCourses = (enrollmentsData || []).filter((enrollment) => enrollment.status === "in_progress").length
-      const completedCourses = (enrollmentsData || []).filter((enrollment) => enrollment.status === "completed").length
+      const activeEnrollments = (enrollmentsData || []).filter(
+        (enrollment) => enrollment.status === "in_progress",
+      ).length
+      const completedEnrollments = (enrollmentsData || []).filter(
+        (enrollment) => enrollment.status === "completed",
+      ).length
       const totalProgress =
         (enrollmentsData || []).length > 0
           ? Math.round(
@@ -250,17 +224,13 @@ export default function DashboardPage() {
           : 0
 
       setStats({
-        totalApplications,
-        pendingApplications,
-        approvedApplications,
-        rejectedApplications,
-        activeCourses,
-        completedCourses,
+        activeEnrollments,
+        completedEnrollments,
         totalProgress,
       })
 
       // Fetch data for admin sections if user is admin
-      if (profile?.is_admin) {
+      if (profileData?.is_admin) {
         const { data: usersData, error: usersError } = await supabase
           .from("user_profiles")
           .select("id, user_id, full_name, email, is_admin")
@@ -336,8 +306,8 @@ export default function DashboardPage() {
     )
   }
 
-  const handleViewCourseDetails = async (enrollment: Enrollment) => {
-    setSelectedCourseForLearning(enrollment)
+  const handleViewEnrollmentDetails = async (enrollment: Enrollment) => {
+    setSelectedEnrollmentForLearning(enrollment)
     try {
       const { data: modulesData, error: modulesError } = await supabase
         .from("modules")
@@ -378,12 +348,12 @@ export default function DashboardPage() {
         completed: userModuleCompletionMap.get(module.id) || false,
         lessons: module.lessons || [],
       }))
-      setSelectedCourseModules(formattedModules)
+      setSelectedEnrollmentModules(formattedModules)
     } catch (error) {
-      console.error("Error fetching course modules:", error)
+      console.error("Error fetching enrollment modules:", error)
       toast({
         title: "Error",
-        description: "Failed to load course modules.",
+        description: "Failed to load enrollment modules.",
         variant: "destructive",
       })
     }
@@ -396,7 +366,7 @@ export default function DashboardPage() {
         data: { session },
       } = await supabase.auth.getSession()
 
-      if (!session || !selectedCourseForLearning) {
+      if (!session || !selectedEnrollmentForLearning) {
         router.push("/login")
         return
       }
@@ -406,7 +376,7 @@ export default function DashboardPage() {
         .from("user_modules")
         .select("*")
         .eq("user_id", session.user.id)
-        .eq("user_enrollment_id", selectedCourseForLearning.id)
+        .eq("user_enrollment_id", selectedEnrollmentForLearning.id)
         .eq("module_id", moduleId)
         .single()
 
@@ -422,23 +392,23 @@ export default function DashboardPage() {
         // Insert new record (should ideally not happen if modules are pre-created on enrollment)
         await supabase.from("user_modules").insert({
           user_id: session.user.id,
-          user_enrollment_id: selectedCourseForLearning.id,
+          user_enrollment_id: selectedEnrollmentForLearning.id,
           module_id: moduleId,
           completed: true,
         })
       }
 
       // Update local state for modules
-      const updatedModules = selectedCourseModules.map((module) =>
+      const updatedModules = selectedEnrollmentModules.map((module) =>
         module.id === moduleId ? { ...module, completed: !currentStatus } : module,
       )
-      setSelectedCourseModules(updatedModules)
+      setSelectedEnrollmentModules(updatedModules)
 
       // Calculate new progress for the enrollment
       const completedModulesCount = updatedModules.filter((module) => module.completed).length
       const newProgress = Math.round((completedModulesCount / updatedModules.length) * 100)
 
-      // Update course progress in user_enrollments
+      // Update enrollment progress in user_enrollments
       await supabase
         .from("user_enrollments")
         .update({
@@ -446,12 +416,12 @@ export default function DashboardPage() {
           status: newProgress === 100 ? "completed" : newProgress > 0 ? "in_progress" : "not_started",
           completed_at: newProgress === 100 ? new Date().toISOString() : null,
         })
-        .eq("id", selectedCourseForLearning.id)
+        .eq("id", selectedEnrollmentForLearning.id)
 
       // Update local state for enrollments
       setEnrollments((prev) =>
         prev.map((enrollment) =>
-          enrollment.id === selectedCourseForLearning.id
+          enrollment.id === selectedEnrollmentForLearning.id
             ? {
                 ...enrollment,
                 progress: newProgress,
@@ -460,7 +430,7 @@ export default function DashboardPage() {
             : enrollment,
         ),
       )
-      setSelectedCourseForLearning((prev) =>
+      setSelectedEnrollmentForLearning((prev) =>
         prev
           ? {
               ...prev,
@@ -499,14 +469,17 @@ export default function DashboardPage() {
         return
       }
 
-      const { data, error } = await supabase.from("user_enrollments").insert({
-        user_id: selectedUserForAssignment,
-        certification_id: selectedCertForAssignment,
-        status: "not_started",
-        progress: 0,
-        due_date: assignmentDueDate ? assignmentDueDate.toISOString() : null,
-        created_at: new Date().toISOString(),
-      })
+      const { data, error } = await supabase
+        .from("user_enrollments")
+        .insert({
+          user_id: selectedUserForAssignment,
+          certification_id: selectedCertForAssignment,
+          status: "not_started",
+          progress: 0,
+          due_date: assignmentDueDate ? assignmentDueDate.toISOString() : null,
+          created_at: new Date().toISOString(),
+        })
+        .select() // Add .select() to return the inserted data
 
       if (error) throw error
 
@@ -518,7 +491,8 @@ export default function DashboardPage() {
 
       if (modulesError) console.error("Error fetching modules for new enrollment:", modulesError)
 
-      if (modules && modules.length > 0) {
+      if (modules && modules.length > 0 && data && data.length > 0) {
+        // Ensure data is not null/empty
         const userModulesToInsert = modules.map((module) => ({
           user_id: selectedUserForAssignment,
           user_enrollment_id: data[0].id, // Link to the newly created enrollment
@@ -530,8 +504,8 @@ export default function DashboardPage() {
       }
 
       toast({
-        title: "Course Assigned",
-        description: "The course has been successfully assigned to the user.",
+        title: "Certification Assigned",
+        description: "The certification has been successfully assigned to the user.",
       })
       setIsAssignCourseModalOpen(false)
       setSelectedUserForAssignment("")
@@ -539,10 +513,10 @@ export default function DashboardPage() {
       setAssignmentDueDate(undefined)
       fetchDashboardData() // Refresh data
     } catch (error) {
-      console.error("Error assigning course:", error)
+      console.error("Error assigning certification:", error)
       toast({
         title: "Assignment Failed",
-        description: "There was an error assigning the course.",
+        description: "There was an error assigning the certification.",
         variant: "destructive",
       })
     } finally {
@@ -585,10 +559,33 @@ export default function DashboardPage() {
 
     try {
       // Delete associated modules and lessons first (due to foreign key constraints)
-      const { error: modulesError } = await supabase.from("modules").delete().eq("certification_id", certId)
+      // Fetch modules associated with this certification
+      const { data: modulesToDelete, error: fetchModulesError } = await supabase
+        .from("modules")
+        .select("id")
+        .eq("certification_id", certId)
 
-      if (modulesError) throw modulesError
+      if (fetchModulesError) throw fetchModulesError
 
+      if (modulesToDelete && modulesToDelete.length > 0) {
+        const moduleIds = modulesToDelete.map((m) => m.id)
+        // Delete lessons associated with these modules
+        const { error: deleteLessonsError } = await supabase.from("lessons").delete().in("module_id", moduleIds)
+        if (deleteLessonsError) throw deleteLessonsError
+
+        // Delete user_modules associated with these modules
+        const { error: deleteUserModulesError } = await supabase
+          .from("user_modules")
+          .delete()
+          .in("module_id", moduleIds)
+        if (deleteUserModulesError) throw deleteUserModulesError
+
+        // Delete the modules themselves
+        const { error: deleteModulesError } = await supabase.from("modules").delete().eq("certification_id", certId)
+        if (deleteModulesError) throw deleteModulesError
+      }
+
+      // Finally, delete the certification
       const { error } = await supabase.from("certifications").delete().eq("id", certId)
 
       if (error) throw error
@@ -654,6 +651,15 @@ export default function DashboardPage() {
     if (!confirm("Are you sure you want to delete this module? This will also delete associated lessons.")) return
 
     try {
+      // Delete associated lessons first
+      const { error: deleteLessonsError } = await supabase.from("lessons").delete().eq("module_id", moduleId)
+      if (deleteLessonsError) throw deleteLessonsError
+
+      // Delete user_modules associated with this module
+      const { error: deleteUserModulesError } = await supabase.from("user_modules").delete().eq("module_id", moduleId)
+      if (deleteUserModulesError) throw deleteUserModulesError
+
+      // Then delete the module itself
       const { error } = await supabase.from("modules").delete().eq("id", moduleId)
 
       if (error) throw error
@@ -829,7 +835,7 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <div className="flex flex-col space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Student"}!
+          Welcome back, {userProfile?.full_name || user?.email?.split("@")[0] || "Student"}!
         </h1>
         <p className="text-muted-foreground">Here's an overview of your learning journey with APMIH.</p>
       </div>
@@ -838,7 +844,7 @@ export default function DashboardPage() {
       <Tabs value={activeTab} onValueChange={(value) => router.push(`/dashboard?tab=${value}`)}>
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="my-courses">My Courses</TabsTrigger>
+          <TabsTrigger value="my-enrollments">My Enrollments</TabsTrigger>
           {isAdmin && <TabsTrigger value="admin-users">Admin: Users</TabsTrigger>}
           {isAdmin && <TabsTrigger value="admin-certs">Admin: Certifications</TabsTrigger>}
           {isAdmin && <TabsTrigger value="admin-modules">Admin: Modules & Lessons</TabsTrigger>}
@@ -847,36 +853,25 @@ export default function DashboardPage() {
         {/* Overview Tab Content */}
         <TabsContent value="overview" className="mt-6 space-y-6">
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalApplications}</div>
-                <p className="text-xs text-muted-foreground">{stats.pendingApplications} pending approval</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Courses</CardTitle>
+                <CardTitle className="text-sm font-medium">Active Enrollments</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.activeCourses}</div>
-                <p className="text-xs text-muted-foreground">Currently enrolled</p>
+                <div className="text-2xl font-bold">{stats.activeEnrollments}</div>
+                <p className="text-xs text-muted-foreground">Currently in progress</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completed</CardTitle>
+                <CardTitle className="text-sm font-medium">Completed Enrollments</CardTitle>
                 <Award className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.completedCourses}</div>
+                <div className="text-2xl font-bold">{stats.completedEnrollments}</div>
                 <p className="text-xs text-muted-foreground">Certifications earned</p>
               </CardContent>
             </Card>
@@ -888,7 +883,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.totalProgress}%</div>
-                <p className="text-xs text-muted-foreground">Across all courses</p>
+                <p className="text-xs text-muted-foreground">Across all enrollments</p>
               </CardContent>
             </Card>
           </div>
@@ -915,62 +910,11 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 className="w-full bg-transparent"
-                onClick={() => router.push("/dashboard?tab=my-courses")}
+                onClick={() => router.push("/dashboard?tab=my-enrollments")}
               >
                 <Award className="mr-2 h-4 w-4" />
-                My Courses
+                My Enrollments
               </Button>
-            </CardContent>
-          </Card>
-
-          {/* Applications Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>My Applications</CardTitle>
-              <CardDescription>Track the status of your certification applications</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {applications.length > 0 ? (
-                <div className="space-y-4">
-                  {applications.map((application) => (
-                    <div key={application.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        {getStatusIcon(application.status)}
-                        <div>
-                          <p className="text-sm font-medium">{application.program_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Applied on {new Date(application.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {getStatusBadge(application.status)}
-                        {application.status === "approved" && (
-                          <Button size="sm" variant="outline" asChild>
-                            <Link href="/dashboard?tab=my-courses">Start Course</Link>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No applications yet</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Start by browsing our certifications and submitting an application.
-                  </p>
-                  <div className="mt-6">
-                    <Button asChild>
-                      <Link href="/certifications">
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        Browse Certifications
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -1001,15 +945,15 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
 
-        {/* My Courses Tab Content */}
-        <TabsContent value="my-courses" className="mt-6 space-y-6">
-          <h2 className="text-2xl font-bold">My Enrolled Courses</h2>
+        {/* My Enrollments Tab Content */}
+        <TabsContent value="my-enrollments" className="mt-6 space-y-6">
+          <h2 className="text-2xl font-bold">My Enrolled Certifications</h2>
           <div className="mb-6 flex items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
                 type="search"
-                placeholder="Search courses..."
+                placeholder="Search enrollments..."
                 className="pl-8"
                 // value={searchQuery} // Add state for search if needed
                 // onChange={(e) => setSearchQuery(e.target.value)}
@@ -1017,7 +961,7 @@ export default function DashboardPage() {
             </div>
             <Button className="ml-4" onClick={() => router.push("/certifications")}>
               <Plus className="mr-2 h-4 w-4" />
-              Enroll in New Course
+              Enroll in New Certification
             </Button>
           </div>
 
@@ -1027,13 +971,14 @@ export default function DashboardPage() {
                 <Card
                   key={enrollment.id}
                   className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => handleViewCourseDetails(enrollment)}
+                  onClick={() => handleViewEnrollmentDetails(enrollment)}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex justify-between">
                       <div>
                         <CardTitle className="text-lg">{enrollment.certifications.name}</CardTitle>
                         <CardDescription>
+                          {/* Assuming category and level are part of certifications, if not, remove */}
                           {enrollment.certifications.category} • {enrollment.certifications.level}
                         </CardDescription>
                       </div>
@@ -1051,7 +996,7 @@ export default function DashboardPage() {
                     <div className="flex justify-between text-xs text-gray-500 mt-2">
                       <div className="flex items-center">
                         <BookOpen className="h-3 w-3 mr-1" />
-                        <span>Modules: {selectedCourseModules.length}</span> {/* Placeholder, ideally fetched */}
+                        <span>Modules: {selectedEnrollmentModules.length}</span> {/* Placeholder, ideally fetched */}
                       </div>
                       <div className="flex items-center">
                         <Clock className="h-3 w-3 mr-1" />
@@ -1076,9 +1021,10 @@ export default function DashboardPage() {
           ) : (
             <div className="text-center py-12 border rounded-lg">
               <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Courses Yet</h3>
+              <h3 className="text-lg font-medium mb-2">No Enrollments Yet</h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                You haven't enrolled in any courses yet. Browse our catalog to find courses that interest you.
+                You haven't enrolled in any certifications yet. Browse our catalog to find certifications that interest
+                you.
               </p>
               <Button className="mt-4" onClick={() => router.push("/certifications")}>
                 Browse Certifications
@@ -1086,26 +1032,26 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Selected Course Details (Modules & Lessons) */}
-          {selectedCourseForLearning && (
+          {/* Selected Enrollment Details (Modules & Lessons) */}
+          {selectedEnrollmentForLearning && (
             <Card className="mt-8">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>{selectedCourseForLearning.certifications.name} Modules</span>
-                  <Button variant="ghost" onClick={() => setSelectedCourseForLearning(null)}>
+                  <span>{selectedEnrollmentForLearning.certifications.name} Modules</span>
+                  <Button variant="ghost" onClick={() => setSelectedEnrollmentForLearning(null)}>
                     <XCircle className="h-5 w-5" />
                   </Button>
                 </CardTitle>
                 <CardDescription>
-                  Progress: {selectedCourseForLearning.progress}% -{" "}
-                  {selectedCourseForLearning.status.replace(/_/g, " ")}
-                  <Progress value={selectedCourseForLearning.progress || 0} className="h-2 mt-2" />
+                  Progress: {selectedEnrollmentForLearning.progress}% -{" "}
+                  {selectedEnrollmentForLearning.status.replace(/_/g, " ")}
+                  <Progress value={selectedEnrollmentForLearning.progress || 0} className="h-2 mt-2" />
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {selectedCourseModules.length > 0 ? (
+                {selectedEnrollmentModules.length > 0 ? (
                   <Accordion type="multiple" className="w-full">
-                    {selectedCourseModules.map((module) => (
+                    {selectedEnrollmentModules.map((module) => (
                       <Card key={module.id} className={module.completed ? "border-green-200 bg-green-50" : ""}>
                         <AccordionItem value={module.id}>
                           <CardHeader className="pb-2">
@@ -1122,7 +1068,7 @@ export default function DashboardPage() {
                                 disabled={isUpdatingModule}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  toggleModuleCompletion(module.id, module.completed)
+                                  toggleModuleCompletion(module.id, module.completed || false)
                                 }}
                                 className={module.completed ? "text-green-600" : "text-gray-400"}
                               >
@@ -1164,27 +1110,34 @@ export default function DashboardPage() {
                     <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                     <h3 className="text-lg font-medium mb-2">No Modules Available</h3>
                     <p className="text-gray-500 max-w-md mx-auto">
-                      This course doesn't have any modules yet. Check back later for updates.
+                      This certification doesn't have any modules yet. Check back later for updates.
                     </p>
                   </div>
                 )}
               </CardContent>
-              {selectedCourseForLearning.progress === 100 && (
+              {selectedEnrollmentForLearning.progress === 100 && (
                 <CardFooter className="justify-center">
                   <Card className="bg-green-50 border-green-200 w-full">
                     <CardHeader>
                       <CardTitle className="flex justify-center items-center text-green-700">
                         <Award className="h-8 w-8 mr-2" />
-                        Course Completed!
+                        Certification Completed!
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-green-700">Congratulations! You've completed all modules in this course.</p>
+                      <p className="text-green-700">
+                        Congratulations! You've completed all modules in this certification.
+                      </p>
                     </CardContent>
                     <CardFooter className="justify-center">
-                      {selectedCourseForLearning.certificate_issued && selectedCourseForLearning.certificate_url ? (
+                      {selectedEnrollmentForLearning.certificate_issued &&
+                      selectedEnrollmentForLearning.certificate_url ? (
                         <Button asChild>
-                          <a href={selectedCourseForLearning.certificate_url} target="_blank" rel="noopener noreferrer">
+                          <a
+                            href={selectedEnrollmentForLearning.certificate_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             Download Certificate
                           </a>
                         </Button>
@@ -1207,7 +1160,7 @@ export default function DashboardPage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Registered Students</CardTitle>
                 <Button onClick={() => setIsAssignCourseModalOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" /> Assign Course
+                  <Plus className="mr-2 h-4 w-4" /> Assign Certification
                 </Button>
               </CardHeader>
               <CardContent>
@@ -1216,7 +1169,7 @@ export default function DashboardPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Courses Enrolled</TableHead>
+                      <TableHead>Certifications Enrolled</TableHead>
                       <TableHead>Admin</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1239,7 +1192,7 @@ export default function DashboardPage() {
                                   ))}
                                 </ul>
                               ) : (
-                                "No courses"
+                                "No certifications"
                               )}
                             </TableCell>
                             <TableCell>{u.is_admin ? "Yes" : "No"}</TableCell>
@@ -1336,7 +1289,7 @@ export default function DashboardPage() {
         {/* Admin: Modules & Lessons Tab Content */}
         {isAdmin && (
           <TabsContent value="admin-modules" className="mt-6 space-y-6">
-            <h2 className="text-2xl font-bold">Manage Course Content</h2>
+            <h2 className="text-2xl font-bold">Manage Certification Content</h2>
             <Card>
               <CardHeader>
                 <CardTitle>Select Certification</CardTitle>
@@ -1513,7 +1466,7 @@ export default function DashboardPage() {
       <Dialog open={isAssignCourseModalOpen} onOpenChange={setIsAssignCourseModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Assign Course to User</DialogTitle>
+            <DialogTitle>Assign Certification to User</DialogTitle>
             <DialogDescription>Select a user and a certification to assign.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1580,7 +1533,7 @@ export default function DashboardPage() {
             </Button>
             <Button onClick={handleAssignCourse} disabled={isAssigningCourse}>
               {isAssigningCourse && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Assign Course
+              Assign Certification
             </Button>
           </DialogFooter>
         </DialogContent>

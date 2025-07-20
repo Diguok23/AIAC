@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, LayoutDashboard, Users, Award, Settings, User, FileText, GraduationCap } from "lucide-react"
+import { BookOpen, LayoutDashboard, Users, Award, Settings, User, GraduationCap } from "lucide-react" // Removed FileText
 import {
   Sidebar,
   SidebarContent,
@@ -36,10 +36,10 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
       active: pathname === "/dashboard",
     },
     {
-      title: "My Applications",
-      href: "/dashboard/applications",
-      icon: FileText,
-      active: pathname === "/dashboard/applications",
+      title: "My Enrollments", // Changed from My Applications
+      href: "/dashboard?tab=my-enrollments", // Link to dashboard with enrollments tab
+      icon: BookOpen, // Changed icon to BookOpen for enrollments
+      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "my-enrollments",
     },
     {
       title: "My Certificates",
@@ -64,21 +64,21 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
   const adminNavItems = [
     {
       title: "Manage Users",
-      href: "/dashboard?tab=users", // Link to dashboard with users tab
+      href: "/dashboard?tab=admin-users", // Link to dashboard with users tab
       icon: Users,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "users",
+      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-users",
     },
     {
       title: "Manage Certifications",
-      href: "/dashboard?tab=certifications", // Link to dashboard with certifications tab
+      href: "/dashboard?tab=admin-certs", // Link to dashboard with certifications tab
       icon: GraduationCap,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "certifications",
+      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-certs",
     },
     {
       title: "Manage Modules & Lessons",
-      href: "/dashboard?tab=modules", // Link to dashboard with modules tab
+      href: "/dashboard?tab=admin-modules", // Link to dashboard with modules tab
       icon: BookOpen,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "modules",
+      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-modules",
     },
   ]
 

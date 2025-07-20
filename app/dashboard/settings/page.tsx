@@ -28,10 +28,13 @@ export default function DashboardSettingsPage() {
       setLoading(true)
       try {
         const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-        if (userError) throw userError
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError) throw sessionError
+
+        const user = session?.user
         if (!user) {
           toast({
             title: "Authentication Error",
@@ -78,10 +81,13 @@ export default function DashboardSettingsPage() {
     setSaving(true)
     try {
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-      if (userError) throw userError
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError) throw sessionError
+
+      const user = session?.user
       if (!user) {
         toast({
           title: "Authentication Error",

@@ -63,10 +63,10 @@ export async function POST(request: Request) {
       .insert({
         user_id: userId,
         certification_id: certificationId,
-        status: "active", // Default to active when assigned by admin
+        status: "not_started", // Default to not_started when assigned by admin
         progress: 0,
         enrolled_at: new Date().toISOString(),
-        started_at: new Date().toISOString(), // Assume started immediately if assigned
+        // started_at: new Date().toISOString(), // Assume started immediately if assigned - removed this, status is 'not_started'
         due_date: dueDate || null,
         certificate_issued: false,
       })
@@ -90,12 +90,13 @@ export async function POST(request: Request) {
       // Continue, but log the error as modules might not be set up yet
     }
 
-    if (modules && modules.length > 0) {
+    if (modules && modules.length > 0 && newEnrollment) {
+      // Ensure newEnrollment is not null
       const userModuleInserts = modules.map((module) => ({
         user_id: userId,
-        course_id: certificationId, // Using course_id as certification_id for consistency with user_modules table
+        user_enrollment_id: newEnrollment.id, // Link to the newly created enrollment
         module_id: module.id,
-        is_completed: false,
+        completed: false,
       }))
       const { error: userModulesInsertError } = await supabase.from("user_modules").insert(userModuleInserts)
       if (userModulesInsertError) {
