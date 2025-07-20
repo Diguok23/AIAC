@@ -7,7 +7,7 @@ import { createSupabaseClient } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import DashboardSidebar from "@/components/dashboard-sidebar"
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar" // Import Sidebar components
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 
 export default function DashboardLayout({
@@ -54,7 +54,22 @@ export default function DashboardLayout({
           return
         }
 
-        setUser(session.user)
+        // Fetch user profile to check admin status
+        const { data: profile, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("is_admin")
+          .eq("user_id", session.user.id)
+          .single()
+
+        if (profileError) {
+          console.error("Error fetching user profile:", profileError)
+          // Handle case where profile might not exist yet (e.g., new user before trigger runs)
+          // For now, assume not admin if profile fetch fails
+          setUser({ ...session.user, is_admin: false })
+        } else {
+          setUser({ ...session.user, is_admin: profile?.is_admin || false })
+        }
+
         setIsLoading(false)
 
         // Set up auth state listener
@@ -70,7 +85,19 @@ export default function DashboardLayout({
               router.replace("/login")
             }
           } else if (session?.user) {
-            setUser(session.user)
+            // Re-fetch profile on auth state change to get admin status
+            const { data: updatedProfile, error: updatedProfileError } = await supabase
+              .from("user_profiles")
+              .select("is_admin")
+              .eq("user_id", session.user.id)
+              .single()
+
+            if (updatedProfileError) {
+              console.error("Error fetching updated user profile:", updatedProfileError)
+              setUser({ ...session.user, is_admin: false })
+            } else {
+              setUser({ ...session.user, is_admin: updatedProfile?.is_admin || false })
+            }
             setIsLoading(false)
           }
         })
@@ -115,12 +142,12 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <DashboardSidebar /> {/* This is the actual sidebar component */}
+      <DashboardSidebar user={user} /> {/* Pass user to sidebar for conditional rendering */}
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <DashboardHeader user={user} /> {/* Your existing header component */}
+          <DashboardHeader user={user} />
         </header>
         <main className="flex-1 p-6">{children}</main>
       </SidebarInset>

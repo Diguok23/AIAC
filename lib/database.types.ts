@@ -240,27 +240,30 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string | null
-          id: number // Corrected: This is the integer primary key of user_profiles
+          id: number
+          is_admin: boolean | null // Added is_admin
           phone_number: string | null
-          user_id: string // Corrected: This is the foreign key to auth.users.id (UUID)
+          user_id: string
         }
         Insert: {
           address?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
-          id?: number // Corrected: This is the integer primary key of user_profiles
+          id?: number
+          is_admin?: boolean | null // Added is_admin
           phone_number?: string | null
-          user_id: string // Must be provided on insert
+          user_id: string
         }
         Update: {
           address?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
-          id?: number // Corrected: This is the integer primary key of user_profiles
+          id?: number
+          is_admin?: boolean | null // Added is_admin
           phone_number?: string | null
-          user_id?: string // Can be updated, but usually not
+          user_id?: string
         }
         Relationships: [
           {
