@@ -26,6 +26,7 @@ import {
   Trash2,
   Loader2,
   Circle,
+  Calendar,
 } from "lucide-react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -44,10 +45,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Enrollment {
   id: string
@@ -66,13 +67,20 @@ interface Enrollment {
     description: string
     duration_days: number | null
     price: number
+    category?: string
+    level?: string
   }
+  certificate_number?: string
 }
 
 interface DashboardStats {
   activeEnrollments: number
   completedEnrollments: number
   totalProgress: number
+  totalEnrollments: number
+  completedCourses: number
+  inProgressCourses: number
+  certificatesEarned: number
 }
 
 interface UserProfile {
@@ -119,6 +127,10 @@ export default function DashboardPage() {
     activeEnrollments: 0,
     completedEnrollments: 0,
     totalProgress: 0,
+    totalEnrollments: 0,
+    completedCourses: 0,
+    inProgressCourses: 0,
+    certificatesEarned: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
   const [selectedEnrollmentForLearning, setSelectedEnrollmentForLearning] = useState<Enrollment | null>(null)
@@ -192,6 +204,7 @@ export default function DashboardPage() {
           due_date,
           certificate_issued,
           certificate_url,
+          certificate_number,
           certifications:certification_id (
             id,
             name,
@@ -227,6 +240,10 @@ export default function DashboardPage() {
         activeEnrollments,
         completedEnrollments,
         totalProgress,
+        totalEnrollments: enrollmentsData?.length || 0,
+        completedCourses: (enrollmentsData || []).filter((e) => e.status === "completed").length || 0,
+        inProgressCourses: (enrollmentsData || []).filter((e) => e.status === "in_progress").length || 0,
+        certificatesEarned: (enrollmentsData || []).filter((e) => e.certificate_number).length || 0,
       })
 
       // Fetch data for admin sections if user is admin
@@ -809,22 +826,71 @@ export default function DashboardPage() {
     }
   }
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "in_progress":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      case "enrolled":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const formatStatus = (status: string) => {
+    return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
+        <div>
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-12 animate-pulse mb-1"></div>
-                <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-32" />
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-2 w-full" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
@@ -833,11 +899,18 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {userProfile?.full_name || user?.email?.split("@")[0] || "Student"}!
+      {/* Welcome Section */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Welcome back,{" "}
+          {userProfile?.full_name ||
+            user?.email?.split("@")[0] ||
+            user?.user_metadata?.full_name ||
+            user?.email ||
+            "Student"}
+          !
         </h1>
-        <p className="text-muted-foreground">Here's an overview of your learning journey with APMIH.</p>
+        <p className="text-muted-foreground">Here's an overview of your learning progress and achievements.</p>
       </div>
 
       {/* Tabs for Dashboard Sections */}

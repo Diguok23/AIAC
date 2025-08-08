@@ -5,37 +5,43 @@ export type Database = {
     Tables: {
       applications: {
         Row: {
-          address: string | null
-          certification_id: string | null
+          certification_id: number
           created_at: string
-          email: string | null
-          first_name: string | null
-          id: string
-          last_name: string | null
-          phone_number: string | null
-          status: Database["public"]["Enums"]["application_status"]
+          email: string
+          first_name: string
+          full_name: string | null
+          id: number
+          last_name: string
+          phone: string | null
+          status: string | null
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
-          address?: string | null
-          certification_id?: string | null
+          certification_id: number
           created_at?: string
-          email?: string | null
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          phone_number?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
+          email: string
+          first_name: string
+          full_name?: string | null
+          id?: number
+          last_name: string
+          phone?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
-          address?: string | null
-          certification_id?: string | null
+          certification_id?: number
           created_at?: string
-          email?: string | null
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          phone_number?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
+          email?: string
+          first_name?: string
+          full_name?: string | null
+          id?: number
+          last_name?: string
+          phone?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -45,35 +51,42 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       certifications: {
         Row: {
           created_at: string
-          description: string | null
-          duration_days: number | null
-          id: string
-          image_url: string | null
-          name: string | null
-          price: number | null
+          description: string
+          duration: string | null
+          id: number
+          price: number
+          title: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
-          description?: string | null
-          duration_days?: number | null
-          id?: string
-          image_url?: string | null
-          name?: string | null
-          price?: number | null
+          description: string
+          duration?: string | null
+          id?: number
+          price: number
+          title: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
-          description?: string | null
-          duration_days?: number | null
-          id?: string
-          image_url?: string | null
-          name?: string | null
-          price?: number | null
+          description?: string
+          duration?: string | null
+          id?: number
+          price?: number
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -81,26 +94,29 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string
-          id: string
-          module_id: string | null
-          order_index: number | null
-          title: string | null
+          id: number
+          module_id: number
+          order_index: number
+          title: string
+          updated_at: string
         }
         Insert: {
           content?: string | null
           created_at?: string
-          id?: string
-          module_id?: string | null
-          order_index?: number | null
-          title?: string | null
+          id?: number
+          module_id: number
+          order_index: number
+          title: string
+          updated_at?: string
         }
         Update: {
           content?: string | null
           created_at?: string
-          id?: string
-          module_id?: string | null
-          order_index?: number | null
-          title?: string | null
+          id?: number
+          module_id?: number
+          order_index?: number
+          title?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -114,25 +130,31 @@ export type Database = {
       }
       modules: {
         Row: {
-          certification_id: string | null
+          certification_id: number
           created_at: string
-          id: string
-          name: string | null
-          order_index: number | null
+          description: string | null
+          id: number
+          order_index: number
+          title: string
+          updated_at: string
         }
         Insert: {
-          certification_id?: string | null
+          certification_id: number
           created_at?: string
-          id?: string
-          name?: string | null
-          order_index?: number | null
+          description?: string | null
+          id?: number
+          order_index: number
+          title: string
+          updated_at?: string
         }
         Update: {
-          certification_id?: string | null
+          certification_id?: number
           created_at?: string
-          id?: string
-          name?: string | null
-          order_index?: number | null
+          description?: string | null
+          id?: number
+          order_index?: number
+          title?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -146,42 +168,45 @@ export type Database = {
       }
       user_enrollments: {
         Row: {
-          certificate_issued: boolean | null
-          certificate_url: string | null
+          certificate_issued_at: string | null
+          certificate_number: string | null
+          certification_id: number
+          completed_at: string | null
           created_at: string
-          course_id: string | null
-          due_date: string | null
-          id: string
+          id: number
           progress: number | null
-          status: Database["public"]["Enums"]["enrollment_status"]
-          user_id: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          certificate_issued?: boolean | null
-          certificate_url?: string | null
+          certificate_issued_at?: string | null
+          certificate_number?: string | null
+          certification_id: number
+          completed_at?: string | null
           created_at?: string
-          course_id?: string | null
-          due_date?: string | null
-          id?: string
+          id?: number
           progress?: number | null
-          status?: Database["public"]["Enums"]["enrollment_status"]
-          user_id?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          certificate_issued?: boolean | null
-          certificate_url?: string | null
+          certificate_issued_at?: string | null
+          certificate_number?: string | null
+          certification_id?: number
+          completed_at?: string | null
           created_at?: string
-          course_id?: string | null
-          due_date?: string | null
-          id?: string
+          id?: number
           progress?: number | null
-          status?: Database["public"]["Enums"]["enrollment_status"]
-          user_id?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_enrollments_course_id_fkey"
-            columns: ["course_id"]
+            foreignKeyName: "user_enrollments_certification_id_fkey"
+            columns: ["certification_id"]
             isOneToOne: false
             referencedRelation: "certifications"
             referencedColumns: ["id"]
@@ -197,25 +222,28 @@ export type Database = {
       }
       user_modules: {
         Row: {
-          completed: boolean | null
+          completed_at: string | null
           created_at: string
-          id: string
-          module_id: string | null
-          user_enrollment_id: string | null
+          id: number
+          module_id: number | null
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          completed?: boolean | null
+          completed_at?: string | null
           created_at?: string
-          id?: string
-          module_id?: string | null
-          user_enrollment_id?: string | null
+          id?: number
+          module_id?: number | null
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          completed?: boolean | null
+          completed_at?: string | null
           created_at?: string
-          id?: string
-          module_id?: string | null
-          user_enrollment_id?: string | null
+          id?: number
+          module_id?: number | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -226,43 +254,37 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_modules_user_enrollment_id_fkey"
-            columns: ["user_enrollment_id"]
+            foreignKeyName: "user_modules_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_enrollments"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
       }
       user_profiles: {
         Row: {
-          address: string | null
           created_at: string
-          email: string | null
           full_name: string | null
           id: number
-          is_admin: boolean | null // Added is_admin
-          phone_number: string | null
+          is_admin: boolean | null
+          updated_at: string
           user_id: string
         }
         Insert: {
-          address?: string | null
           created_at?: string
-          email?: string | null
           full_name?: string | null
           id?: number
-          is_admin?: boolean | null // Added is_admin
-          phone_number?: string | null
+          is_admin?: boolean | null
+          updated_at?: string
           user_id: string
         }
         Update: {
-          address?: string | null
           created_at?: string
-          email?: string | null
           full_name?: string | null
           id?: number
-          is_admin?: boolean | null // Added is_admin
-          phone_number?: string | null
+          is_admin?: boolean | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -283,11 +305,82 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      application_status: "pending" | "approved" | "rejected"
-      enrollment_status: "enrolled" | "completed" | "dropped"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
     }
   }
 }
+
+type PublicSchema = Database[Extract<keyof Database, "public">]
+
+export type Tables<
+  PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] & PublicSchema["Views"]) | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] & PublicSchema["Views"])
+    ? (PublicSchema["Tables"] & PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  PublicTableNameOrOptions extends keyof PublicSchema["Tables"] | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  PublicTableNameOrOptions extends keyof PublicSchema["Tables"] | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  PublicEnumNameOrOptions extends keyof PublicSchema["Enums"] | { schema: keyof Database },
+  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = PublicEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
+    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never

@@ -1,7 +1,5 @@
 "use client"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { BookOpen, LayoutDashboard, Users, Award, Settings, User, GraduationCap } from "lucide-react" // Removed FileText
+import { Separator } from "@/components/ui/separator"
 import {
   Sidebar,
   SidebarContent,
@@ -14,92 +12,112 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronUp } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  BookOpen,
+  Calendar,
+  BadgeIcon as Certificate,
+  FileText,
+  GraduationCap,
+  Home,
+  Settings,
+  Users,
+  BarChart3,
+  User,
+} from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 interface DashboardSidebarProps {
-  user: any // User object from Supabase, including is_admin
+  user: any
 }
 
 export default function DashboardSidebar({ user }: DashboardSidebarProps) {
   const pathname = usePathname()
-  const isAdmin = user?.is_admin || false
 
-  const navItems = [
+  const studentNavItems = [
     {
-      title: "Dashboard",
+      title: "Overview",
       href: "/dashboard",
-      icon: LayoutDashboard,
-      active: pathname === "/dashboard",
+      icon: Home,
     },
     {
-      title: "My Enrollments", // Changed from My Applications
-      href: "/dashboard?tab=my-enrollments", // Link to dashboard with enrollments tab
-      icon: BookOpen, // Changed icon to BookOpen for enrollments
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "my-enrollments",
+      title: "My Enrollments",
+      href: "/dashboard/courses",
+      icon: BookOpen,
     },
     {
-      title: "My Certificates",
+      title: "Certifications",
+      href: "/dashboard/certifications",
+      icon: GraduationCap,
+    },
+    {
+      title: "Certificates",
       href: "/dashboard/certificates",
-      icon: Award,
-      active: pathname === "/dashboard/certificates",
+      icon: Certificate,
     },
     {
-      title: "My Profile",
+      title: "Schedule",
+      href: "/dashboard/schedule",
+      icon: Calendar,
+    },
+    {
+      title: "Profile",
       href: "/dashboard/profile",
       icon: User,
-      active: pathname === "/dashboard/profile",
     },
     {
       title: "Settings",
       href: "/dashboard/settings",
       icon: Settings,
-      active: pathname === "/dashboard/settings",
     },
   ]
 
   const adminNavItems = [
     {
-      title: "Manage Users",
-      href: "/dashboard?tab=admin-users", // Link to dashboard with users tab
+      title: "Analytics",
+      href: "/dashboard/analytics",
+      icon: BarChart3,
+    },
+    {
+      title: "Applications",
+      href: "/dashboard/applications",
+      icon: FileText,
+    },
+    {
+      title: "Users",
+      href: "/dashboard/users",
       icon: Users,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-users",
-    },
-    {
-      title: "Manage Certifications",
-      href: "/dashboard?tab=admin-certs", // Link to dashboard with certifications tab
-      icon: GraduationCap,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-certs",
-    },
-    {
-      title: "Manage Modules & Lessons",
-      href: "/dashboard?tab=admin-modules", // Link to dashboard with modules tab
-      icon: BookOpen,
-      active: pathname === "/dashboard" && new URLSearchParams(window.location.search).get("tab") === "admin-modules",
     },
   ]
 
+  const displayName = user?.user_metadata?.full_name || user?.email || "User"
+  const isAdmin = user?.is_admin || false
+
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
-        <Link href="/dashboard" className="flex items-center gap-2 px-2 py-4">
-          <img src="/placeholder-logo.png" alt="Logo" className="h-8 w-8" />
-          <span className="text-lg font-semibold">APMIH</span>
-        </Link>
+        <div className="flex items-center gap-2 px-4 py-2">
+          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <GraduationCap className="size-4" />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">APMIH</span>
+            <span className="truncate text-xs">Learning Portal</span>
+          </div>
+        </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>General</SidebarGroupLabel>
+          <SidebarGroupLabel>Student Portal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={item.active}>
+              {studentNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild isActive={pathname === item.href}>
                     <Link href={item.href}>
-                      <item.icon />
+                      <item.icon className="size-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -111,16 +129,16 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
 
         {isAdmin && (
           <>
-            <SidebarSeparator />
+            <Separator />
             <SidebarGroup>
-              <SidebarGroupLabel>Admin</SidebarGroupLabel>
+              <SidebarGroupLabel>Administration</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {adminNavItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={item.active}>
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={pathname === item.href}>
                         <Link href={item.href}>
-                          <item.icon />
+                          <item.icon className="size-4" />
                           <span>{item.title}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -132,33 +150,23 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
           </>
         )}
       </SidebarContent>
+
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder-user.jpg"} />
-                    <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <span>{user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"}</span>
-                  <ChevronUp className="ml-auto h-4 w-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile">Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/settings">Settings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => console.log("Sign out")}>Sign out</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="p-4">
+          <div className="flex items-center gap-2 text-sm">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+              <User className="size-4" />
+            </div>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">{displayName}</span>
+              <span className="truncate text-xs text-sidebar-foreground/70">
+                {isAdmin ? "Administrator" : "Student"}
+              </span>
+            </div>
+          </div>
+        </div>
       </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   )
