@@ -1,263 +1,240 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+"use client"
+
+import { useState, useEffect } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Calendar, Award, Users, TrendingUp } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { BookOpen, Award, Calendar, TrendingUp, Clock, Users } from "lucide-react"
 import Link from "next/link"
 import type { Database } from "@/lib/database.types"
 
-export default async function DashboardPage() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+type UserEnrollment = Database["public"]["Tables"]["user_enrollments"]["Row"]
+type Certification = Database["public"]["Tables"]["certifications"]["Row"]
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+interface EnrollmentWithCertification extends UserEnrollment {
+  certifications: Certification
+}
 
-  if (!session) {
-    return null
+export default function DashboardPage() {
+  const [enrollments, setEnrollments] = useState<EnrollmentWithCertification[]>([])
+  const [stats, setStats] = useState({
+    totalEnrollments: 0,
+    completedCourses: 0,
+    inProgressCourses: 0,
+    certificates: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const supabase = createClientComponentClient<Database>()
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) return
+
+      // Fetch user enrollments with certification details
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from("user_enrollments")
+        .select(`
+          *,
+          certifications (*)
+        `)
+        .eq("user_id", session.user.id)
+
+      if (enrollmentsError) throw enrollmentsError
+
+      setEnrollments(enrollmentsData || [])
+
+      // Calculate stats
+      const totalEnrollments = enrollmentsData?.length || 0
+      const completedCourses = enrollmentsData?.filter((e) => e.status === "completed").length || 0
+      const inProgressCourses = enrollmentsData?.filter((e) => e.status === "active").length || 0
+
+      setStats({
+        totalEnrollments,
+        completedCourses,
+        inProgressCourses,
+        certificates: completedCourses, // Assuming completed courses = certificates
+      })
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Fetch user enrollments
-  const { data: enrollments } = await supabase
-    .from("user_enrollments")
-    .select(`
-      *,
-      certifications (
-        id,
-        title,
-        description,
-        duration,
-        price
-      )
-    `)
-    .eq("user_id", session.user.id)
-
-  // Fetch user applications
-  const { data: applications } = await supabase.from("applications").select("*").eq("user_id", session.user.id)
-
-  const stats = [
-    {
-      title: "Active Courses",
-      value: enrollments?.filter((e) => e.status === "active").length || 0,
-      icon: BookOpen,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-    },
-    {
-      title: "Completed Courses",
-      value: enrollments?.filter((e) => e.status === "completed").length || 0,
-      icon: Award,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-    },
-    {
-      title: "Applications",
-      value: applications?.length || 0,
-      icon: Users,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
-    },
-    {
-      title: "Total Progress",
-      value: `${Math.round((enrollments?.reduce((acc, e) => acc + (e.progress || 0), 0) || 0) / Math.max(enrollments?.length || 1, 1))}%`,
-      icon: TrendingUp,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
-    },
-  ]
+  const recentEnrollments = enrollments.slice(0, 3)
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Welcome to Your Learning Journey</h1>
-        <p className="text-blue-100 text-sm sm:text-base">
-          Continue your professional development with our hospitality management programs.
-        </p>
+    <div className="space-y-8">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Enrollments</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalEnrollments}</div>
+            <p className="text-xs text-muted-foreground">Active learning paths</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inProgressCourses}</div>
+            <p className="text-xs text-muted-foreground">Courses in progress</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <Award className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.completedCourses}</div>
+            <p className="text-xs text-muted-foreground">Courses completed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Certificates</CardTitle>
+            <Award className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.certificates}</div>
+            <p className="text-xs text-muted-foreground">Certificates earned</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Courses */}
+      {/* Recent Activity */}
+      <div className="grid gap-8 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <BookOpen className="h-5 w-5" />
-              <span>My Courses</span>
-            </CardTitle>
-            <CardDescription>Your enrolled certification programs</CardDescription>
+            <CardTitle>Recent Enrollments</CardTitle>
+            <CardDescription>Your latest course enrollments and progress</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {enrollments && enrollments.length > 0 ? (
-              enrollments.slice(0, 3).map((enrollment) => (
-                <div
-                  key={enrollment.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-gray-900 truncate">{enrollment.certifications?.title}</h4>
-                    <p className="text-sm text-gray-500 mt-1">Progress: {enrollment.progress || 0}%</p>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all"
-                        style={{ width: `${enrollment.progress || 0}%` }}
-                      />
-                    </div>
-                  </div>
-                  <Badge
-                    variant={enrollment.status === "active" ? "default" : "secondary"}
-                    className="ml-4 flex-shrink-0"
-                  >
-                    {enrollment.status}
-                  </Badge>
-                </div>
-              ))
-            ) : (
+            {recentEnrollments.length === 0 ? (
               <div className="text-center py-8">
                 <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No courses enrolled yet</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Yet</h3>
+                <p className="text-gray-600 mb-4">Start your learning journey by enrolling in a certification.</p>
                 <Button asChild>
-                  <Link href="/certifications">Browse Certifications</Link>
+                  <Link href="/dashboard/certifications">Browse Certifications</Link>
                 </Button>
               </div>
-            )}
-            {enrollments && enrollments.length > 3 && (
-              <div className="pt-4 border-t">
-                <Button variant="outline" asChild className="w-full bg-transparent">
-                  <Link href="/dashboard/courses">View All Courses</Link>
-                </Button>
-              </div>
+            ) : (
+              recentEnrollments.map((enrollment) => (
+                <div key={enrollment.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">{enrollment.certifications.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Enrolled on {new Date(enrollment.enrollment_date).toLocaleDateString()}
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={enrollment.status === "completed" ? "default" : "secondary"}>
+                        {enrollment.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/courses/${enrollment.certification_id}`}>Continue</Link>
+                  </Button>
+                </div>
+              ))
             )}
           </CardContent>
         </Card>
 
-        {/* Recent Applications */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Applications</span>
-            </CardTitle>
-            <CardDescription>Your certification applications</CardDescription>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common tasks and shortcuts</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {applications && applications.length > 0 ? (
-              applications.slice(0, 3).map((application) => (
-                <div
-                  key={application.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-gray-900 truncate">Application #{application.id.slice(0, 8)}</h4>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Submitted: {new Date(application.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={
-                      application.status === "approved"
-                        ? "default"
-                        : application.status === "pending"
-                          ? "secondary"
-                          : "destructive"
-                    }
-                    className="ml-4 flex-shrink-0"
-                  >
-                    {application.status}
-                  </Badge>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No applications submitted yet</p>
-                <Button asChild>
-                  <Link href="/apply">Submit Application</Link>
-                </Button>
-              </div>
-            )}
-            {applications && applications.length > 3 && (
-              <div className="pt-4 border-t">
-                <Button variant="outline" asChild className="w-full bg-transparent">
-                  <Link href="/dashboard/applications">View All Applications</Link>
-                </Button>
-              </div>
-            )}
+            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
+              <Link href="/dashboard/certifications">
+                <BookOpen className="mr-2 h-4 w-4" />
+                Browse Certifications
+              </Link>
+            </Button>
+            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
+              <Link href="/dashboard/applications">
+                <Calendar className="mr-2 h-4 w-4" />
+                View Applications
+              </Link>
+            </Button>
+            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
+              <Link href="/dashboard/certificates">
+                <Award className="mr-2 h-4 w-4" />
+                My Certificates
+              </Link>
+            </Button>
+            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
+              <Link href="/dashboard/schedule">
+                <Calendar className="mr-2 h-4 w-4" />
+                View Schedule
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common tasks and shortcuts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Button
-              asChild
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center space-y-2 bg-transparent"
-            >
-              <Link href="/certifications">
-                <BookOpen className="h-6 w-6" />
-                <span className="text-sm">Browse Courses</span>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center space-y-2 bg-transparent"
-            >
-              <Link href="/apply">
-                <Users className="h-6 w-6" />
-                <span className="text-sm">Apply Now</span>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center space-y-2 bg-transparent"
-            >
-              <Link href="/dashboard/schedule">
-                <Calendar className="h-6 w-6" />
-                <span className="text-sm">View Schedule</span>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center space-y-2 bg-transparent"
-            >
-              <Link href="/dashboard/certificates">
-                <Award className="h-6 w-6" />
-                <span className="text-sm">Certificates</span>
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Learning Progress */}
+      {enrollments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Learning Progress</CardTitle>
+            <CardDescription>Track your progress across all enrolled certifications</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {enrollments.map((enrollment) => (
+                <div key={enrollment.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none">{enrollment.certifications.title}</p>
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{enrollment.certifications.duration || "Self-paced"}</span>
+                        <Users className="h-3 w-3 ml-2" />
+                        <span>{enrollment.certifications.level || "All levels"}</span>
+                      </div>
+                    </div>
+                    <Badge variant={enrollment.status === "completed" ? "default" : "secondary"}>
+                      {enrollment.status}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={enrollment.status === "completed" ? 100 : enrollment.progress_percentage || 0}
+                    className="h-2"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{enrollment.progress_percentage || 0}% complete</span>
+                    <span>
+                      {enrollment.status === "completed"
+                        ? "Completed"
+                        : `${enrollment.progress_percentage || 0}% remaining`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

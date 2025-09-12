@@ -18,8 +18,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarFooter,
 } from "@/components/ui/sidebar"
 import { LayoutDashboard, BookOpen, Award, Calendar, FileText, Settings, User, Menu, GraduationCap } from "lucide-react"
+
+interface DashboardSidebarProps {
+  user?: any
+}
 
 const navigation = [
   {
@@ -84,7 +89,7 @@ const navigation = [
   },
 ]
 
-export function DashboardSidebar() {
+export default function DashboardSidebar({ user }: DashboardSidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -121,12 +126,27 @@ export function DashboardSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
+      <SidebarFooter className="border-t p-4">
+        <div className="flex items-center space-x-3 group-data-[collapsible=icon]:justify-center">
+          <div className="flex-shrink-0">
+            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+              <span className="text-sm font-medium text-gray-700">{user?.email?.charAt(0).toUpperCase() || "U"}</span>
+            </div>
+          </div>
+          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user?.full_name || user?.email?.split("@")[0] || "User"}
+            </p>
+            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+          </div>
+        </div>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
 }
 
-export function MobileSidebar() {
+export function MobileSidebar({ user }: DashboardSidebarProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
