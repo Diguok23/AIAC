@@ -1,16 +1,17 @@
 import type React from "react"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { Analytics } from "@vercel/analytics/react"
 import { Suspense } from "react"
-import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "African Professional Management Institute of Hospitality",
-  description: "Professional hospitality education and certification programs",
+  description: "Professional hospitality management certification programs",
     generator: 'v0.app'
 }
 

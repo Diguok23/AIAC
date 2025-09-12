@@ -14,70 +14,11 @@ type UserEnrollment = Database["public"]["Tables"]["user_enrollments"]["Row"] & 
   certifications: Database["public"]["Tables"]["certifications"]["Row"]
 }
 
-interface UserProfile {
-  id: number
-  user_id: string
-  full_name: string | null
-  email: string | null
-  is_admin: boolean | null
-}
-
-interface Certification {
-  id: string
-  name: string
-  description: string
-  duration_days: number | null
-  price: number
-}
-
-interface Module {
-  id: string
-  name: string
-  description: string | null
-  order_index: number
-  lessons: Lesson[]
-  completed?: boolean // Added for client-side tracking
-}
-
-interface Lesson {
-  id: string
-  title: string
-  content: string | null
-  order_index: number
-}
-
-interface DashboardData {
-  stats: any
-  enrollments: any[]
-  applications: any[]
-}
-
 export default function DashboardPage() {
   const [enrollments, setEnrollments] = useState<UserEnrollment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [user, setUser] = useState<any>(null)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null) // State for user profile
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([])
-  const [allCertifications, setAllCertifications] = useState<Certification[]>([])
-  const [isAssignCourseModalOpen, setIsAssignCourseModalOpen] = useState(false)
-  const [selectedUserForAssignment, setSelectedUserForAssignment] = useState<string>("")
-  const [selectedCertForAssignment, setSelectedCertForAssignment] = useState<string>("")
-  const [assignmentDueDate, setAssignmentDueDate] = useState<Date | undefined>(undefined)
-  const [isAssigningCourse, setIsAssigningCourse] = useState(false)
-  const [isCertModalOpen, setIsCertModalOpen] = useState(false)
-  const [currentCert, setCurrentCert] = useState<Certification | null>(null)
-  const [isModuleModalOpen, setIsModuleModalOpen] = useState(false)
-  const [currentModule, setCurrentModule] = useState<Module | null>(null)
-  const [isLessonModalOpen, setIsLessonModalOpen] = useState(false)
-  const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null)
-  const [selectedCertForModules, setSelectedCertForModules] = useState<string>("")
-  const [modulesForSelectedCert, setModulesForSelectedCert] = useState<Module[]>([])
-  const [isSavingContent, setIsSavingContent] = useState(false)
-  const [selectedEnrollmentForLearning, setSelectedEnrollmentForLearning] = useState<any | null>(null)
-  const [selectedEnrollmentModules, setSelectedEnrollmentModules] = useState<any[]>([])
-  const [isUpdatingModule, setIsUpdatingModule] = useState(false)
 
   const supabase = createClientComponentClient<Database>()
 
@@ -85,7 +26,7 @@ export default function DashboardPage() {
     async function fetchDashboardData() {
       try {
         setLoading(true)
-        setError(null)
+        setError("")
 
         // Get current user
         const {
@@ -125,41 +66,6 @@ export default function DashboardPage() {
         }
 
         setEnrollments(enrollmentsData || [])
-
-        // Fetch user profile to check admin status and get full_name
-        const { data: profileData, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("is_admin, full_name, email, user_id, id")
-          .eq("user_id", user.id)
-          .single()
-
-        if (profileError && profileError.code !== "PGRST116") {
-          console.error("Error fetching user profile:", profileError)
-          setIsAdmin(false)
-          setUserProfile(null)
-        } else {
-          setIsAdmin(profileData?.is_admin || false)
-          setUserProfile(profileData || null)
-        }
-
-        // Fetch data for admin sections if user is admin
-        if (profileData?.is_admin) {
-          const { data: usersData, error: usersError } = await supabase
-            .from("user_profiles")
-            .select("id, user_id, full_name, email, is_admin")
-            .order("full_name")
-
-          if (usersError) console.error("Error fetching users:", usersError)
-          setAllUsers(usersData || [])
-
-          const { data: certsData, error: certsError } = await supabase
-            .from("certifications")
-            .select("id, name, description, duration_days, price")
-            .order("name")
-
-          if (certsError) console.error("Error fetching certifications:", certsError)
-          setAllCertifications(certsData || [])
-        }
       } catch (err) {
         console.error("Dashboard fetch error:", err)
         setError(err instanceof Error ? err.message : "An unexpected error occurred")
