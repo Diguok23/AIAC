@@ -60,13 +60,13 @@ export default function CertificationsPage() {
         // If authenticated, fetch enrolled courses
         if (session) {
           const { data: enrollments, error: enrollmentsError } = await supabase
-            .from("user_courses")
-            .select("course_id")
+            .from("user_enrollments")
+            .select("certification_id")
             .eq("user_id", session.user.id)
 
           if (enrollmentsError) throw enrollmentsError
 
-          setEnrolledCourseIds(enrollments.map((e) => e.course_id))
+          setEnrolledCourseIds(enrollments.map((e) => e.certification_id))
         }
       } catch (error) {
         console.error("Error fetching certifications:", error)
@@ -120,8 +120,8 @@ export default function CertificationsPage() {
         variant: "default",
       })
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      // Redirect to dashboard certifications instead of dashboard
+      router.push("/dashboard/certifications")
     } catch (error) {
       console.error("Error enrolling:", error)
       toast({
@@ -378,15 +378,20 @@ function CertificationCard({ cert, isEnrolled, onEnroll, isEnrolling, isAuthenti
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row gap-2">
         <Button className="w-full sm:w-auto" asChild>
-          <Link href={`/certifications/${cert.slug}`}>Learn More</Link>
+          <Link href={`/certifications/${cert.slug || cert.id}`}>Learn More</Link>
         </Button>
 
         {isEnrolled ? (
-          <Button variant="outline" className="w-full sm:w-auto" asChild>
-            <Link href="/dashboard/courses">Go to Course</Link>
+          <Button variant="outline" className="w-full sm:w-auto bg-transparent" asChild>
+            <Link href="/dashboard/certifications">Go to Dashboard</Link>
           </Button>
         ) : (
-          <Button variant="outline" className="w-full sm:w-auto" onClick={onEnroll} disabled={isEnrolling}>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto bg-transparent"
+            onClick={onEnroll}
+            disabled={isEnrolling}
+          >
             {isEnrolling ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
