@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2 } from "lucide-react"
 import Link from "next/link"
-import type { Database } from "@/lib/database.types"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -21,7 +19,6 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [isSignUp, setIsSignUp] = useState(false)
   const router = useRouter()
-  const supabase = createClientComponentClient<Database>()
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,12 +26,23 @@ export default function LoginPage() {
     setError("")
 
     try {
+      // Check if we're in a preview environment
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        setError("Authentication is not available in preview mode. Please deploy to test authentication.")
+        return
+      }
+
+      const { createClientComponentClient } = await import("@supabase/auth-helpers-nextjs")
+      const { Database } = await import("@/lib/database.types")
+
+      const supabase = createClientComponentClient<typeof Database>()
+
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${location.origin}/auth/callback`,
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         })
         if (error) throw error
@@ -45,10 +53,13 @@ export default function LoginPage() {
           password,
         })
         if (error) throw error
-        router.push("/dashboard")
+
+        // Force a page refresh to ensure auth state is updated
+        window.location.href = "/dashboard"
       }
     } catch (error: any) {
-      setError(error.message)
+      console.error("Auth error:", error)
+      setError(error.message || "An error occurred during authentication")
     } finally {
       setLoading(false)
     }

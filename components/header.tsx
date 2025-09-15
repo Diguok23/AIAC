@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X, User, LogIn, UserPlus } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { createSupabaseClient } from "@/lib/supabase"
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -17,12 +16,22 @@ export default function Header() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Check if we're in a preview environment
+        if (typeof window === "undefined" || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          setIsLoading(false)
+          return
+        }
+
+        const { createSupabaseClient } = await import("@/lib/supabase")
         const supabase = createSupabaseClient()
 
-        // Get initial session
+        // Get initial session with timeout
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
+
         const {
           data: { session },
-        } = await supabase.auth.getSession()
+        } = (await Promise.race([sessionPromise, timeoutPromise])) as any
 
         setUser(session?.user || null)
 
@@ -38,6 +47,8 @@ export default function Header() {
         }
       } catch (error) {
         console.error("Auth check error:", error)
+        // Fail silently in preview environment
+        setUser(null)
       } finally {
         setIsLoading(false)
       }
@@ -48,11 +59,17 @@ export default function Header() {
 
   const handleLogout = async () => {
     try {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return
+
+      const { createSupabaseClient } = await import("@/lib/supabase")
       const supabase = createSupabaseClient()
       await supabase.auth.signOut()
       router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
+      // Force logout by clearing state
+      setUser(null)
+      router.push("/")
     }
   }
 
