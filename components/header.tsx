@@ -17,13 +17,16 @@ export default function Header() {
     const checkAuth = async () => {
       try {
         // Check if we're in a preview environment
-        if (typeof window === "undefined" || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseAnonKey) {
           setIsLoading(false)
           return
         }
 
-        const { createSupabaseClient } = await import("@/lib/supabase")
-        const supabase = createSupabaseClient()
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
         // Get initial session with timeout
         const sessionPromise = supabase.auth.getSession()
@@ -59,11 +62,16 @@ export default function Header() {
 
   const handleLogout = async () => {
     try {
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-      const { createSupabaseClient } = await import("@/lib/supabase")
-      const supabase = createSupabaseClient()
-      await supabase.auth.signOut()
+      if (supabaseUrl && supabaseAnonKey) {
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabase = createClient(supabaseUrl, supabaseAnonKey)
+        await supabase.auth.signOut()
+      }
+
+      setUser(null)
       router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
@@ -95,7 +103,7 @@ export default function Header() {
               <div className="hidden sm:block">
                 <span className="text-xl font-bold text-navy-700">APMIH</span>
                 <span className="ml-2 hidden text-sm text-muted-foreground lg:inline-block">
-                  American Professional Management Institute of Hospitality
+                  African Professional Management Institute of Hospitality
                 </span>
               </div>
               <div className="sm:hidden">

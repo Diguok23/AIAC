@@ -1,87 +1,76 @@
-import { createClient } from "@supabase/supabase-js"
+import { createServerSupabaseClient } from "@/lib/supabase"
 import { NextResponse } from "next/server"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!)
+    const supabase = createServerSupabaseClient()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    const category = searchParams.get("category")
 
-    const { data: certifications, error } = await supabase
-      .from("certifications")
-      .select("*")
-      .order("category")
-      .order("title")
+    let query = supabase.from("certifications").select("*")
 
-    if (error) {
-      console.error("Error fetching certifications:", error)
-      return NextResponse.json({ error: "Failed to fetch certifications" }, { status: 500 })
+    if (id) {
+      query = query.eq("id", id)
     }
 
-    return NextResponse.json({ certifications: certifications || [] })
+    if (category) {
+      query = query.eq("category", category)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    return NextResponse.json({ certifications: data || [] })
   } catch (error) {
     console.error("Error fetching certifications:", error)
-    return NextResponse.json({ error: "An error occurred while fetching certifications" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch certifications" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabase = createServerSupabaseClient()
     const body = await request.json()
 
-    const { data, error } = await supabase.from("certifications").insert([body]).select()
+    const {
+      title,
+      description,
+      category,
+      level,
+      price,
+      duration,
+      instructor,
+      long_description,
+      instructor_bio,
+      rating,
+      student_count,
+    } = body
 
-    if (error) {
-      console.error("Error creating certification:", error)
-      return NextResponse.json({ error: "Failed to create certification" }, { status: 500 })
-    }
+    const { data, error } = await supabase
+      .from("certifications")
+      .insert({
+        title,
+        description,
+        category,
+        level,
+        price,
+        duration,
+        instructor,
+        long_description,
+        instructor_bio,
+        rating: rating || 0,
+        student_count: student_count || 0,
+      })
+      .select()
+      .single()
 
-    return NextResponse.json({ certification: data[0] })
+    if (error) throw error
+
+    return NextResponse.json(data)
   } catch (error) {
     console.error("Error creating certification:", error)
-    return NextResponse.json({ error: "An error occurred while creating certification" }, { status: 500 })
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const body = await request.json()
-    const { id, ...updateData } = body
-
-    const { data, error } = await supabase.from("certifications").update(updateData).eq("id", id).select()
-
-    if (error) {
-      console.error("Error updating certification:", error)
-      return NextResponse.json({ error: "Failed to update certification" }, { status: 500 })
-    }
-
-    return NextResponse.json({ certification: data[0] })
-  } catch (error) {
-    console.error("Error updating certification:", error)
-    return NextResponse.json({ error: "An error occurred while updating certification" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get("id")
-
-    if (!id) {
-      return NextResponse.json({ error: "Certification ID is required" }, { status: 400 })
-    }
-
-    const { error } = await supabase.from("certifications").delete().eq("id", id)
-
-    if (error) {
-      console.error("Error deleting certification:", error)
-      return NextResponse.json({ error: "Failed to delete certification" }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Error deleting certification:", error)
-    return NextResponse.json({ error: "An error occurred while deleting certification" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to create certification" }, { status: 500 })
   }
 }

@@ -1,433 +1,369 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Clock, Users, Award, BookOpen } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
-import type { Database } from "@/lib/database.types"
+import { Skeleton } from "@/components/ui/skeleton"
+import { AlertCircle, BookOpen, Award, CheckCircle, Clock, DollarSign, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
-type Certification = Database["public"]["Tables"]["certifications"]["Row"]
-type UserEnrollment = Database["public"]["Tables"]["user_enrollments"]["Row"]
-type Application = Database["public"]["Tables"]["applications"]["Row"]
+interface Certification {
+  id: string
+  title: string
+  description: string
+  price: number
+  level: string
+  category: string
+  slug: string
+  rating?: number
+  students?: number
+  duration?: string
+}
+
+interface UserEnrollment {
+  id: string
+  certification_id: string
+  status: string
+  progress: number
+  created_at: string
+  completed_at?: string
+}
 
 interface CertificationWithEnrollment extends Certification {
-  user_enrollments?: UserEnrollment[]
-  applications?: Application[]
-  isEnrolled?: boolean
-  hasApplied?: boolean
-  applicationStatus?: string
+  enrollment?: UserEnrollment
 }
 
 export default function DashboardCertificationsPage() {
-  const [certifications, setCertifications] = useState<CertificationWithEnrollment[]>([])
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [enrolling, setEnrolling] = useState<number | null>(null)
-  const supabase = createClientComponentClient<Database>()
+  const [error, setError] = useState<string | null>(null)
+  const [available, setAvailable] = useState<Certification[]>([])
+  const [inProgress, setInProgress] = useState<CertificationWithEnrollment[]>([])
+  const [completed, setCompleted] = useState<CertificationWithEnrollment[]>([])
 
   useEffect(() => {
-    fetchCertifications()
-  }, [])
+    const fetchCertifications = async () => {
+      try {
+        setLoading(true)
+        setError(null)
 
-  const fetchCertifications = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) return
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-      // Fetch certifications with user enrollments and applications
-      const { data: certificationsData, error: certError } = await supabase.from("certifications").select(`
-          *,
-          user_enrollments!inner(
-            id,
-            user_id,
-            certification_id,
-            enrollment_date,
-            status
-          ),
-          applications!inner(
-            id,
-            user_id,
-            certification_id,
-            status
-          )
-        `)
-
-      if (certError) throw certError
-
-      // Also fetch all certifications to show available ones
-      const { data: allCertifications, error: allError } = await supabase.from("certifications").select("*")
-
-      if (allError) throw allError
-
-      // Process the data to add enrollment and application status
-      const processedCertifications = allCertifications.map((cert) => {
-        const enrollment = certificationsData?.find(
-          (c) => c.id === cert.id && c.user_enrollments?.some((e) => e.user_id === session.user.id),
-        )
-        const application = certificationsData?.find(
-          (c) => c.id === cert.id && c.applications?.some((a) => a.user_id === session.user.id),
-        )
-
-        return {
-          ...cert,
-          isEnrolled: !!enrollment,
-          hasApplied: !!application,
-          applicationStatus: application?.applications?.[0]?.status || null,
-          user_enrollments: enrollment?.user_enrollments || [],
-          applications: application?.applications || [],
+        if (!supabaseUrl || !supabaseAnonKey) {
+          setError("Configuration error. Please contact support.")
+          return
         }
-      })
 
-      setCertifications(processedCertifications)
-    } catch (error) {
-      console.error("Error fetching certifications:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load certifications",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+        const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-  const handleEnroll = async (certificationId: number) => {
-    setEnrolling(certificationId)
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to enroll in courses",
-          variant: "destructive",
+        // Get current user
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError || !session?.user) {
+          router.push("/login")
+          return
+        }
+
+        // Fetch all certifications
+        const { data: certifications, error: certError } = await supabase
+          .from("certifications")
+          .select("*")
+          .order("title")
+
+        if (certError) {
+          console.error("Error fetching certifications:", certError)
+          setError("Failed to load certifications")
+          return
+        }
+
+        // Fetch user enrollments
+        const { data: enrollments, error: enrollError } = await supabase
+          .from("user_enrollments")
+          .select("*")
+          .eq("user_id", session.user.id)
+
+        if (enrollError) {
+          console.error("Error fetching enrollments:", enrollError)
+          setError("Failed to load enrollments")
+          return
+        }
+
+        // Create a map of enrollments by certification ID
+        const enrollmentMap = new Map(enrollments?.map((e) => [e.certification_id, e]))
+
+        // Categorize certifications
+        const availableCerts: Certification[] = []
+        const inProgressCerts: CertificationWithEnrollment[] = []
+        const completedCerts: CertificationWithEnrollment[] = []
+
+        certifications?.forEach((cert) => {
+          const enrollment = enrollmentMap.get(cert.id)
+
+          if (enrollment) {
+            const certWithEnrollment: CertificationWithEnrollment = {
+              ...cert,
+              enrollment,
+            }
+
+            if (enrollment.status === "completed") {
+              completedCerts.push(certWithEnrollment)
+            } else {
+              inProgressCerts.push(certWithEnrollment)
+            }
+          } else {
+            availableCerts.push(cert)
+          }
         })
-        return
+
+        setAvailable(availableCerts)
+        setInProgress(inProgressCerts)
+        setCompleted(completedCerts)
+      } catch (err) {
+        console.error("Error fetching certifications:", err)
+        setError("An error occurred while loading certifications")
+      } finally {
+        setLoading(false)
       }
-
-      const { error } = await supabase.from("user_enrollments").insert({
-        user_id: session.user.id,
-        certification_id: certificationId,
-        enrollment_date: new Date().toISOString(),
-        status: "active",
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Success",
-        description: "Successfully enrolled in certification!",
-      })
-
-      // Refresh the certifications list
-      fetchCertifications()
-    } catch (error) {
-      console.error("Error enrolling:", error)
-      toast({
-        title: "Error",
-        description: "Failed to enroll in certification",
-        variant: "destructive",
-      })
-    } finally {
-      setEnrolling(null)
     }
+
+    fetchCertifications()
+  }, [router])
+
+  const handleEnroll = (certId: string) => {
+    router.push(`/dashboard/billing?certification=${certId}`)
   }
 
-  const handleApply = async (certificationId: number) => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) return
+  const AvailableCertCard = ({ certification }: { certification: Certification }) => (
+    <Card className="hover:shadow-lg transition-shadow h-full flex flex-col overflow-hidden border-slate-200">
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="line-clamp-2 text-lg">{certification.title}</CardTitle>
+            <CardDescription className="line-clamp-2 mt-1 text-sm">{certification.description}</CardDescription>
+          </div>
+          <Badge variant="secondary" className="flex-shrink-0">
+            {certification.level}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 flex-1 flex flex-col">
+        <div className="flex gap-4 text-sm border-t pt-4">
+          {certification.duration && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground">{certification.duration}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1 ml-auto">
+            <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
+            <span className="font-semibold text-green-600">${certification.price}</span>
+          </div>
+        </div>
 
-      const { error } = await supabase.from("applications").insert({
-        user_id: session.user.id,
-        certification_id: certificationId,
-        status: "pending",
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Application Submitted",
-        description: "Your application has been submitted for review",
-      })
-
-      fetchCertifications()
-    } catch (error) {
-      console.error("Error applying:", error)
-      toast({
-        title: "Error",
-        description: "Failed to submit application",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const filteredCertifications = certifications.filter(
-    (cert) =>
-      cert.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cert.description.toLowerCase().includes(searchTerm.toLowerCase()),
+        <Button onClick={() => handleEnroll(certification.id)} className="w-full mt-auto bg-blue-600 hover:bg-blue-700">
+          Enroll Now
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
   )
 
-  const enrolledCertifications = filteredCertifications.filter((cert) => cert.isEnrolled)
-  const availableCertifications = filteredCertifications.filter(
-    (cert) => !cert.isEnrolled && cert.applicationStatus === "approved",
+  const InProgressCertCard = ({ certification }: { certification: CertificationWithEnrollment }) => (
+    <Card className="hover:shadow-lg transition-shadow h-full flex flex-col overflow-hidden border-blue-200 bg-blue-50">
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="line-clamp-2 text-lg">{certification.title}</CardTitle>
+            <CardDescription className="line-clamp-2 mt-1 text-sm">{certification.description}</CardDescription>
+          </div>
+          <Badge className="flex-shrink-0 bg-blue-600">In Progress</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 flex-1 flex flex-col border-t">
+        {certification.enrollment && (
+          <div className="space-y-2 pt-4">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-muted-foreground">Progress</span>
+              <span className="font-bold text-blue-600">{certification.enrollment.progress}%</span>
+            </div>
+            <Progress value={certification.enrollment.progress} className="h-2.5" />
+          </div>
+        )}
+
+        <Button asChild variant="outline" className="w-full mt-auto bg-white hover:bg-blue-50">
+          <Link href={`/dashboard/courses/${certification.id}`}>
+            Continue Learning
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   )
-  const allCertifications = filteredCertifications
-  const completedCertifications = enrolledCertifications.filter((cert) =>
-    cert.user_enrollments?.some((e) => e.status === "completed"),
+
+  const CompletedCertCard = ({ certification }: { certification: CertificationWithEnrollment }) => (
+    <Card className="hover:shadow-lg transition-shadow h-full flex flex-col overflow-hidden border-green-200 bg-green-50">
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="line-clamp-2 text-lg">{certification.title}</CardTitle>
+            <CardDescription className="line-clamp-2 mt-1 text-sm">{certification.description}</CardDescription>
+          </div>
+          <Badge className="flex-shrink-0 bg-green-600">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 flex-1 flex flex-col border-t pt-4">
+        <div className="flex gap-4 text-sm">
+          {certification.duration && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground">{certification.duration}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <Award className="h-4 w-4 text-green-600 flex-shrink-0" />
+            <span className="text-green-600 font-medium">Certificate Earned</span>
+          </div>
+        </div>
+
+        <Button asChild variant="outline" className="w-full mt-auto bg-white hover:bg-green-50 border-green-200">
+          <Link href={`/dashboard/certificates`}>
+            View Certificate
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   )
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-80 w-full" />
+          ))}
+        </div>
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Certifications</h1>
-          <p className="text-gray-600 mt-1">Manage your certifications and explore new opportunities</p>
-        </div>
-        <div className="relative w-full sm:w-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search certifications..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full sm:w-64"
-          />
-        </div>
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Certifications</h1>
+        <p className="text-muted-foreground">
+          Explore our programs and manage your learning journey. Enroll today to get started!
+        </p>
       </div>
 
-      <Tabs defaultValue="enrolled" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="enrolled">Enrolled ({enrolledCertifications.length})</TabsTrigger>
-          <TabsTrigger value="available">Available ({availableCertifications.length})</TabsTrigger>
-          <TabsTrigger value="browse">Browse ({allCertifications.length})</TabsTrigger>
-          <TabsTrigger value="completed">Completed ({completedCertifications.length})</TabsTrigger>
+      <Tabs defaultValue="available" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-slate-100 p-1">
+          <TabsTrigger value="available" className="flex items-center gap-2 text-sm">
+            <Award className="h-4 w-4" />
+            Available
+            <Badge
+              variant="secondary"
+              className="ml-1 h-6 w-6 p-0 flex items-center justify-center rounded-full text-xs"
+            >
+              {available.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="in-progress" className="flex items-center gap-2 text-sm">
+            <BookOpen className="h-4 w-4" />
+            In Progress
+            <Badge
+              variant="secondary"
+              className="ml-1 h-6 w-6 p-0 flex items-center justify-center rounded-full text-xs"
+            >
+              {inProgress.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="flex items-center gap-2 text-sm">
+            <CheckCircle className="h-4 w-4" />
+            Completed
+            <Badge
+              variant="secondary"
+              className="ml-1 h-6 w-6 p-0 flex items-center justify-center rounded-full text-xs"
+            >
+              {completed.length}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="enrolled" className="space-y-4">
-          {enrolledCertifications.length === 0 ? (
+        <TabsContent value="available" className="space-y-6 mt-6">
+          {available.length === 0 ? (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <BookOpen className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrolled Certifications</h3>
-                <p className="text-gray-600 text-center mb-4">
-                  You haven't enrolled in any certifications yet. Browse available certifications to get started.
-                </p>
-                <Button onClick={() => document.querySelector('[value="available"]')?.click()}>
-                  Browse Available Certifications
-                </Button>
+              <CardContent className="pt-6 text-center py-12">
+                <Award className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground text-lg">No available certifications at the moment</p>
+                <p className="text-sm text-muted-foreground mt-2">Check back soon for new programs!</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {enrolledCertifications.map((cert) => (
-                <Card key={cert.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">{cert.title}</CardTitle>
-                      <Badge variant="secondary">Enrolled</Badge>
-                    </div>
-                    <CardDescription className="line-clamp-2">{cert.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{cert.duration || "Self-paced"}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        <span>{cert.level || "All levels"}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" onClick={() => (window.location.href = `/dashboard/courses/${cert.id}`)}>
-                      Continue Learning
-                    </Button>
-                  </CardFooter>
-                </Card>
+              {available.map((cert) => (
+                <AvailableCertCard key={cert.id} certification={cert} />
               ))}
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="available" className="space-y-4">
-          {availableCertifications.length === 0 ? (
+        <TabsContent value="in-progress" className="space-y-6 mt-6">
+          {inProgress.length === 0 ? (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Award className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Certifications</h3>
-                <p className="text-gray-600 text-center">
-                  No certifications are currently available for enrollment. Check back later or browse all
-                  certifications.
+              <CardContent className="pt-6 text-center py-12">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground text-lg">No certifications in progress</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Enroll in a certification from the Available tab to get started!
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {availableCertifications.map((cert) => (
-                <Card key={cert.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{cert.title}</CardTitle>
-                    <CardDescription className="line-clamp-2">{cert.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{cert.duration || "Self-paced"}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        <span>{cert.level || "All levels"}</span>
-                      </div>
-                    </div>
-                    {cert.price && <div className="text-2xl font-bold text-primary mb-2">${cert.price}</div>}
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" onClick={() => handleEnroll(cert.id)} disabled={enrolling === cert.id}>
-                      {enrolling === cert.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Enrolling...
-                        </>
-                      ) : (
-                        "Enroll Now"
-                      )}
-                    </Button>
-                  </CardFooter>
-                </Card>
+              {inProgress.map((cert) => (
+                <InProgressCertCard key={cert.id} certification={cert} />
               ))}
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="browse" className="space-y-4">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {allCertifications.map((cert) => (
-              <Card key={cert.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{cert.title}</CardTitle>
-                    {cert.isEnrolled && <Badge variant="secondary">Enrolled</Badge>}
-                    {cert.hasApplied && !cert.isEnrolled && (
-                      <Badge variant={cert.applicationStatus === "approved" ? "default" : "outline"}>
-                        {cert.applicationStatus}
-                      </Badge>
-                    )}
-                  </div>
-                  <CardDescription className="line-clamp-2">{cert.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{cert.duration || "Self-paced"}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{cert.level || "All levels"}</span>
-                    </div>
-                  </div>
-                  {cert.price && <div className="text-2xl font-bold text-primary mb-2">${cert.price}</div>}
-                </CardContent>
-                <CardFooter>
-                  {cert.isEnrolled ? (
-                    <Button
-                      className="w-full bg-transparent"
-                      variant="outline"
-                      onClick={() => (window.location.href = `/dashboard/courses/${cert.id}`)}
-                    >
-                      Continue Learning
-                    </Button>
-                  ) : cert.applicationStatus === "approved" ? (
-                    <Button className="w-full" onClick={() => handleEnroll(cert.id)} disabled={enrolling === cert.id}>
-                      {enrolling === cert.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Enrolling...
-                        </>
-                      ) : (
-                        "Enroll Now"
-                      )}
-                    </Button>
-                  ) : cert.hasApplied ? (
-                    <Button className="w-full bg-transparent" variant="outline" disabled>
-                      Application {cert.applicationStatus}
-                    </Button>
-                  ) : (
-                    <Button className="w-full bg-transparent" variant="outline" onClick={() => handleApply(cert.id)}>
-                      Apply First
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="completed" className="space-y-4">
-          {completedCertifications.length === 0 ? (
+        <TabsContent value="completed" className="space-y-6 mt-6">
+          {completed.length === 0 ? (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Award className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Completed Certifications</h3>
-                <p className="text-gray-600 text-center">
-                  You haven't completed any certifications yet. Keep learning to earn your first certificate!
-                </p>
+              <CardContent className="pt-6 text-center py-12">
+                <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground text-lg">No completed certifications yet</p>
+                <p className="text-sm text-muted-foreground mt-2">Keep working on your in-progress courses!</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {completedCertifications.map((cert) => (
-                <Card key={cert.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">{cert.title}</CardTitle>
-                      <Badge variant="default">Completed</Badge>
-                    </div>
-                    <CardDescription className="line-clamp-2">{cert.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{cert.duration || "Self-paced"}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        <span>{cert.level || "All levels"}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      className="w-full bg-transparent"
-                      variant="outline"
-                      onClick={() => (window.location.href = `/dashboard/certificates/${cert.id}`)}
-                    >
-                      View Certificate
-                    </Button>
-                  </CardFooter>
-                </Card>
+              {completed.map((cert) => (
+                <CompletedCertCard key={cert.id} certification={cert} />
               ))}
             </div>
           )}

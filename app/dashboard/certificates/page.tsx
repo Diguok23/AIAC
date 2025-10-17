@@ -1,161 +1,146 @@
 "use client"
 
-import Link from "next/link"
-
 import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Award, Download, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Download, Share2, AlertCircle, CheckCircle } from "lucide-react"
 
 interface Certificate {
   id: string
-  title: string
-  issued_date: string
-  certificate_url: string | null
-  status: "completed" | "in_progress" | "not_started"
+  certification_id: string
+  certificate_url?: string
+  certificate_verification_code?: string
+  completed_at?: string
+  certifications?: { title: string }
 }
 
-export default function DashboardCertificatesPage() {
-  const [certificates, setCertificates] = useState<Certificate[]>([])
+export default function CertificatesPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const supabase = createClientComponentClient()
+  const [certificates, setCertificates] = useState<Certificate[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchCertificates = async () => {
-      setLoading(true)
       try {
+        setLoading(true)
+
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+          setError("Supabase is not configured")
+          return
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+        // Get current user
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (!session) {
-          // Handle unauthenticated state, e.g., redirect to login
+        if (!session?.user) {
+          router.push("/login")
           return
         }
 
-        const { data, error } = await supabase
+        // Fetch completed enrollments
+        const { data: enrollments, error: enrollError } = await supabase
           .from("user_enrollments")
-          .select(`
-            id,
-            completed_at,
-            certificate_url,
-            status,
-            certifications:certification_id(
-              title
-            )
-          `)
+          .select("*, certifications:certification_id(title)")
           .eq("user_id", session.user.id)
-          .eq("status", "completed") // Only fetch completed courses for certificates
-          .not("certificate_url", "is", null) // Only show if a certificate URL exists
+          .eq("status", "completed")
+          .eq("certificate_issued", true)
 
-        if (error) throw error
+        if (enrollError) throw enrollError
 
-        const formattedCertificates = data.map((item) => ({
-          id: item.id,
-          title: item.certifications?.title || "Unknown Certificate",
-          issued_date: item.completed_at || "N/A",
-          certificate_url: item.certificate_url,
-          status: item.status,
-        }))
-
-        setCertificates(formattedCertificates)
-      } catch (error) {
-        console.error("Error fetching certificates:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load your certificates.",
-          variant: "destructive",
-        })
+        setCertificates(enrollments || [])
+      } catch (err) {
+        console.error("Error fetching certificates:", err)
+        setError("Failed to load certificates")
       } finally {
         setLoading(false)
       }
     }
 
     fetchCertificates()
-  }, [supabase])
-
-  const filteredCertificates = certificates.filter(
-    (cert) =>
-      cert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cert.issued_date.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  }, [router])
 
   if (loading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
     return (
-      <div className="container py-8">
-        <h1 className="text-3xl font-bold mb-6">My Certificates</h1>
-        <div className="mb-6">
-          <Skeleton className="h-10 w-full max-w-md" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-48 w-full" />
-          ))}
-        </div>
-      </div>
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     )
   }
 
   return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-6">My Certificates</h1>
-
-      <div className="mb-6 flex items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            type="search"
-            placeholder="Search certificates..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">My Certificates</h1>
+        <p className="text-muted-foreground">Download and share your earned certificates</p>
       </div>
 
-      {filteredCertificates.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCertificates.map((certificate) => (
-            <Card key={certificate.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">{certificate.title}</CardTitle>
-                <CardDescription>Issued on: {new Date(certificate.issued_date).toLocaleDateString()}</CardDescription>
+      {certificates.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No certificates yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Complete your courses to earn certificates</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {certificates.map((cert) => (
+            <Card key={cert.id} className="border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="text-lg">{cert.certifications?.title}</CardTitle>
+                <CardDescription>Completed {new Date(cert.completed_at || "").toLocaleDateString()}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">
-                  Status: <span className="font-medium text-green-600">Completed</span>
-                </p>
-              </CardContent>
-              <CardFooter className="pt-0">
-                {certificate.certificate_url ? (
-                  <Button asChild>
-                    <a href={certificate.certificate_url} target="_blank" rel="noopener noreferrer">
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Certificate
-                    </a>
-                  </Button>
-                ) : (
-                  <Button variant="outline" disabled>
-                    Certificate Not Available
-                  </Button>
+              <CardContent className="space-y-4">
+                {cert.certificate_verification_code && (
+                  <div className="bg-white p-3 rounded border">
+                    <p className="text-xs text-muted-foreground mb-1">Verification Code:</p>
+                    <p className="font-mono text-sm">{cert.certificate_verification_code}</p>
+                  </div>
                 )}
-              </CardFooter>
+
+                <div className="flex gap-2">
+                  {cert.certificate_url && (
+                    <Button variant="outline" size="sm" className="flex-1 bg-transparent" asChild>
+                      <a href={cert.certificate_url} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 bg-transparent"
+                    onClick={() => {
+                      const url = window.location.href
+                      navigator.clipboard.writeText(
+                        `Certificate: ${cert.certifications?.title}\nCode: ${cert.certificate_verification_code}\n${url}`,
+                      )
+                    }}
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           ))}
-        </div>
-      ) : (
-        <div className="text-center py-12 border rounded-lg">
-          <Award className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium mb-2">No Certificates Yet</h3>
-          <p className="text-gray-500 max-w-md mx-auto">Complete courses to earn and view your certificates here.</p>
-          <Button className="mt-4" asChild>
-            <Link href="/dashboard/courses">Browse Courses</Link>
-          </Button>
         </div>
       )}
     </div>

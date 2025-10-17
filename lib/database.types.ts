@@ -41,43 +41,325 @@ export type Database = {
           },
         ]
       }
+      special_applications: {
+        Row: {
+          id: string
+          user_id: string
+          certification_id: string
+          application_type: string
+          reason: string | null
+          supporting_documents: Json | null
+          status: string
+          admin_comments: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          certification_id: string
+          application_type: string
+          reason?: string | null
+          supporting_documents?: Json | null
+          status?: string
+          admin_comments?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          certification_id?: string
+          application_type?: string
+          reason?: string | null
+          supporting_documents?: Json | null
+          status?: string
+          admin_comments?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      course_schedule: {
+        Row: {
+          id: string
+          certification_id: string
+          title: string
+          description: string | null
+          date: string
+          time: string | null
+          location: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          certification_id: string
+          title: string
+          description?: string | null
+          date: string
+          time?: string | null
+          location?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          certification_id?: string
+          title?: string
+          description?: string | null
+          date?: string
+          time?: string | null
+          location?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       certifications: {
         Row: {
+          category: string
           created_at: string
           description: string
           duration: string | null
+          features: string[] | null
           id: string
+          instructor: string | null
+          instructor_bio: string | null
           level: string
+          long_description: string | null
           price: number
+          rating: number | null
+          slug: string
+          students: number | null
           title: string
         }
         Insert: {
+          category: string
           created_at?: string
           description: string
           duration?: string | null
+          features?: string[] | null
           id?: string
+          instructor?: string | null
+          instructor_bio?: string | null
           level: string
+          long_description?: string | null
           price: number
+          rating?: number | null
+          slug: string
+          students?: number | null
           title: string
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string
           duration?: string | null
+          features?: string[] | null
           id?: string
+          instructor?: string | null
+          instructor_bio?: string | null
           level?: string
+          long_description?: string | null
           price?: number
+          rating?: number | null
+          slug?: string
+          students?: number | null
           title?: string
         }
         Relationships: []
+      }
+      learning_outcomes: {
+        Row: {
+          certification_id: string
+          created_at: string
+          id: string
+          order_num: number
+          outcome: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          id?: string
+          order_num: number
+          outcome: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          id?: string
+          order_num?: number
+          outcome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_outcomes_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prerequisites: {
+        Row: {
+          certification_id: string
+          created_at: string
+          id: string
+          order_num: number
+          prerequisite: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          id?: string
+          order_num: number
+          prerequisite: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          id?: string
+          order_num?: number
+          prerequisite?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prerequisites_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_reviews: {
+        Row: {
+          certification_id: string
+          comment: string
+          created_at: string
+          id: string
+          rating: number
+          review_date: string
+          student_name: string
+        }
+        Insert: {
+          certification_id: string
+          comment: string
+          created_at?: string
+          id?: string
+          rating: number
+          review_date: string
+          student_name: string
+        }
+        Update: {
+          certification_id?: string
+          comment?: string
+          created_at?: string
+          id?: string
+          rating?: number
+          review_date?: string
+          student_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_reviews_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          certification_id: string
+          created_at: string
+          description: string | null
+          duration: string | null
+          id: string
+          lessons_count: number | null
+          order_num: number
+          title: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          id?: string
+          lessons_count?: number | null
+          order_num: number
+          title: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          id?: string
+          lessons_count?: number | null
+          order_num?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modules_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          module_id: string
+          order_num: number
+          title: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          module_id: string
+          order_num: number
+          title: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          module_id?: string
+          order_num?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_enrollments: {
         Row: {
           certificate_issued: boolean
           certificate_url: string | null
+          certificate_verification_code: string | null
           certification_id: string
           completed_at: string | null
           created_at: string
+          due_date: string | null
           id: string
           payment_status: string
           progress: number
@@ -87,9 +369,11 @@ export type Database = {
         Insert: {
           certificate_issued?: boolean
           certificate_url?: string | null
+          certificate_verification_code?: string | null
           certification_id: string
           completed_at?: string | null
           created_at?: string
+          due_date?: string | null
           id?: string
           payment_status?: string
           progress?: number
@@ -99,9 +383,11 @@ export type Database = {
         Update: {
           certificate_issued?: boolean
           certificate_url?: string | null
+          certificate_verification_code?: string | null
           certification_id?: string
           completed_at?: string | null
           created_at?: string
+          due_date?: string | null
           id?: string
           payment_status?: string
           progress?: number
@@ -126,6 +412,9 @@ export type Database = {
           id: number
           is_admin: boolean | null
           user_id: string
+          phone_number: string | null
+          address: string | null
+          profile_picture_url: string | null
         }
         Insert: {
           created_at?: string
@@ -134,6 +423,9 @@ export type Database = {
           id?: number
           is_admin?: boolean | null
           user_id: string
+          phone_number?: string | null
+          address?: string | null
+          profile_picture_url?: string | null
         }
         Update: {
           created_at?: string
@@ -142,6 +434,9 @@ export type Database = {
           id?: number
           is_admin?: boolean | null
           user_id?: string
+          phone_number?: string | null
+          address?: string | null
+          profile_picture_url?: string | null
         }
         Relationships: []
       }
@@ -246,4 +541,13 @@ export interface DashboardStats {
   activeEnrollments: number
   completedCertifications: number
   pendingApplications: number
+}
+\
+export interface CertificationWithDetails extends Database["public"]["Tables"]["certifications"]["Row"] {
+  learning_outcomes: Database["public"]["Tables"]["learning_outcomes"]["Row"][]
+  prerequisites: Database["public"]["Tables"]["prerequisites"]["Row"][]
+  modules: (Database["public"]["Tables"]["modules"]["Row"] & {
+    lessons: Database["public"]["Tables"]["lessons"]["Row"][]
+  })[]
+  reviews: Database["public"]["Tables"]["certification_reviews"]["Row"][]
 }

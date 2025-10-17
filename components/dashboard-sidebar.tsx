@@ -1,15 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useRouter } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -17,187 +15,143 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
-  SidebarFooter,
 } from "@/components/ui/sidebar"
-import { LayoutDashboard, BookOpen, Award, Calendar, FileText, Settings, User, Menu, GraduationCap } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Award,
+  BookOpen,
+  Calendar,
+  FileText,
+  LogOut,
+  Settings,
+  User,
+  LayoutDashboard,
+  Home,
+  ShoppingCart,
+} from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 
-interface DashboardSidebarProps {
-  user?: any
-}
+export function DashboardSidebar() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
+  const [userEmail, setUserEmail] = React.useState<string>("")
+  const [userName, setUserName] = React.useState<string>("")
 
-const navigation = [
-  {
-    title: "Overview",
-    items: [
-      {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-      },
-    ],
-  },
-  {
-    title: "Learning",
-    items: [
-      {
-        title: "My Courses",
-        href: "/dashboard/courses",
-        icon: BookOpen,
-      },
-      {
-        title: "Certifications",
-        href: "/dashboard/certifications",
-        icon: Award,
-      },
-      {
-        title: "Schedule",
-        href: "/dashboard/schedule",
-        icon: Calendar,
-      },
-    ],
-  },
-  {
-    title: "Progress",
-    items: [
-      {
-        title: "Applications",
-        href: "/dashboard/applications",
-        icon: FileText,
-      },
-      {
-        title: "Certificates",
-        href: "/dashboard/certificates",
-        icon: GraduationCap,
-      },
-    ],
-  },
-  {
-    title: "Account",
-    items: [
-      {
-        title: "Profile",
-        href: "/dashboard/profile",
-        icon: User,
-      },
-      {
-        title: "Settings",
-        href: "/dashboard/settings",
-        icon: Settings,
-      },
-    ],
-  },
-]
+  React.useEffect(() => {
+    const getUserInfo = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-export default function DashboardSidebar({ user }: DashboardSidebarProps) {
-  const pathname = usePathname()
+      if (session?.user) {
+        setUserEmail(session.user.email || "")
+        setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User")
+      }
+    }
+
+    getUserInfo()
+  }, [supabase])
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out",
+      })
+      router.push("/login")
+    } catch (error) {
+      console.error("Error signing out:", error)
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+    { icon: BookOpen, label: "Certifications", href: "/dashboard/certifications" },
+    { icon: ShoppingCart, label: "Billing", href: "/dashboard/billing" },
+    { icon: FileText, label: "Applications", href: "/dashboard/applications" },
+    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
+    { icon: Award, label: "Certificates", href: "/dashboard/certificates" },
+    { icon: User, label: "Profile", href: "/dashboard/profile" },
+    { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+  ]
 
   return (
-    <Sidebar collapsible="icon" className="border-r">
+    <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-4 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-4 w-4" />
-          </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">APMIH</span>
-            <span className="truncate text-xs">Dashboard</span>
-          </div>
-        </div>
+        <Link href="/" className="flex items-center gap-2 px-2 py-3">
+          <Home className="h-6 w-6" />
+          <span className="font-bold">APMIH</span>
+        </Link>
       </SidebarHeader>
+
       <SidebarContent>
-        {navigation.map((group) => (
-          <SidebarGroup key={group.title}>
-            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-      </SidebarContent>
-      <SidebarFooter className="border-t p-4">
-        <div className="flex items-center space-x-3 group-data-[collapsible=icon]:justify-center">
-          <div className="flex-shrink-0">
-            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-              <span className="text-sm font-medium text-gray-700">{user?.email?.charAt(0).toUpperCase() || "U"}</span>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.full_name || user?.email?.split("@")[0] || "User"}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-          </div>
-        </div>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
-  )
-}
-
-export function MobileSidebar({ user }: DashboardSidebarProps) {
-  const [open, setOpen] = useState(false)
-  const pathname = usePathname()
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden">
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle sidebar</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="left" className="w-64 p-0">
-        <div className="flex h-full flex-col">
-          <div className="flex items-center gap-2 border-b px-4 py-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">APMIH</span>
-              <span className="truncate text-xs">Dashboard</span>
-            </div>
-          </div>
-          <ScrollArea className="flex-1 px-3">
-            <div className="space-y-4 py-4">
-              {navigation.map((group) => (
-                <div key={group.title} className="space-y-2">
-                  <h4 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {group.title}
-                  </h4>
-                  <div className="space-y-1">
-                    {group.items.map((item) => (
-                      <Link
-                        key={item.title}
-                        href={item.href}
-                        onClick={() => setOpen(false)}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
-                          pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.title}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild>
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ))}
-            </div>
-          </ScrollArea>
-        </div>
-      </SheetContent>
-    </Sheet>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage />
+                    <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{userName}</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem disabled>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium">{userName}</p>
+                    <p className="text-xs text-muted-foreground">{userEmail}</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/profile">
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
   )
 }

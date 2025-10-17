@@ -1,3 +1,3 @@
-ALTER TABLE public.user_profiles
-ADD CONSTRAINT user_profiles_id_fkey
-FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- This migration is not needed as user_profiles uses user_id to reference auth.users
+-- The id column in user_profiles is an auto-incrementing integer, not a UUID
+-- Skip this migration

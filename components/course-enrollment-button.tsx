@@ -26,32 +26,33 @@ export default function CourseEnrollmentButton({ courseId, isEnrolled = false }:
       } = await supabase.auth.getSession()
 
       if (!session) {
-        router.push("/login?redirect=/certifications")
+        router.push("/login?redirect=/dashboard/certifications")
         return
       }
 
       // Check if already enrolled
       const { data: existingEnrollment } = await supabase
-        .from("user_courses")
+        .from("user_enrollments")
         .select("*")
         .eq("user_id", session.user.id)
-        .eq("course_id", courseId)
-        .single()
+        .eq("certification_id", courseId)
+        .maybeSingle()
 
       if (existingEnrollment) {
-        // Already enrolled, go to course page
-        router.push(`/dashboard/courses/${courseId}`)
+        // Already enrolled, go to dashboard
+        router.push("/dashboard/certifications")
         return
       }
 
       // Enroll in the course
-      const { error } = await supabase.from("user_courses").insert({
+      const { error } = await supabase.from("user_enrollments").insert({
         user_id: session.user.id,
-        course_id: courseId,
+        certification_id: courseId,
         progress: 0,
-        start_date: new Date().toISOString(),
-        last_accessed: new Date().toISOString(),
-        status: "not_started",
+        status: "enrolled",
+        enrolled_at: new Date().toISOString(),
+        due_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        certificate_issued: false,
       })
 
       if (error) throw error
@@ -85,13 +86,13 @@ export default function CourseEnrollmentButton({ courseId, isEnrolled = false }:
         description: "You have been enrolled in this course",
       })
 
-      // Redirect to the course page
-      router.push(`/dashboard/courses/${courseId}`)
+      // Redirect to dashboard
+      router.push("/dashboard/certifications")
     } catch (error) {
       console.error("Error enrolling in course:", error)
       toast({
         title: "Enrollment Failed",
-        description: "There was an error enrolling in this course",
+        description: error instanceof Error ? error.message : "There was an error enrolling in this course",
         variant: "destructive",
       })
     } finally {
@@ -100,7 +101,7 @@ export default function CourseEnrollmentButton({ courseId, isEnrolled = false }:
   }
 
   const handleViewCourse = () => {
-    router.push(`/dashboard/courses/${courseId}`)
+    router.push("/dashboard/certifications")
   }
 
   if (enrolled) {
@@ -108,7 +109,7 @@ export default function CourseEnrollmentButton({ courseId, isEnrolled = false }:
   }
 
   return (
-    <Button onClick={handleEnroll} disabled={loading}>
+    <Button onClick={handleEnroll} disabled={loading} size="lg">
       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       Enroll Now
     </Button>

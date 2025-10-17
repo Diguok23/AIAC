@@ -2,11 +2,11 @@ import Header from "@/components/header"
 import Footer from "@/components/footer"
 import CertificationsPage from "@/components/certifications-page"
 
-export default function Certifications() {
+export default function Page() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex flex-col">
       <Header />
-      <main>
+      <main className="flex-1">
         <CertificationsPage />
       </main>
       <Footer />

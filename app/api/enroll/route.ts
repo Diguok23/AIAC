@@ -1,76 +1,102 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createSupabaseClient } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
+import { NextResponse } from "next/server"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { certificationId } = await request.json()
+    const { certificationId, userId } = await request.json()
 
-    if (!certificationId) {
-      return NextResponse.json({ error: "Certification ID is required" }, { status: 400 })
+    if (!certificationId || !userId) {
+      return NextResponse.json({ error: "Certification ID and User ID are required" }, { status: 400 })
     }
 
-    const supabase = createSupabaseClient()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    )
 
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-    }
-
-    // Check if user has an approved application for this certification
-    const { data: application, error: appError } = await supabase
-      .from("applications")
-      .select("*")
-      .eq("email", user.email)
-      .eq("certification_id", certificationId)
-      .eq("status", "approved")
-      .single()
-
-    if (appError || !application) {
-      return NextResponse.json({ error: "No approved application found for this certification" }, { status: 403 })
-    }
-
-    // Check if user is already enrolled
-    const { data: existingEnrollment, error: enrollmentCheckError } = await supabase
+    // Check if already enrolled
+    const { data: existing, error: existingError } = await supabase
       .from("user_enrollments")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("certification_id", certificationId)
-      .single()
+      .maybeSingle()
 
-    if (existingEnrollment) {
+    if (existingError) {
+      console.error("Check existing enrollment error:", existingError)
+    }
+
+    if (existing) {
       return NextResponse.json({ error: "Already enrolled in this certification" }, { status: 409 })
     }
 
-    // Create enrollment
-    const { data: enrollment, error: enrollmentError } = await supabase
+    // Get certification details
+    const { data: certification, error: certError } = await supabase
+      .from("certifications")
+      .select("*")
+      .eq("id", certificationId)
+      .maybeSingle()
+
+    if (certError || !certification) {
+      console.error("Certification fetch error:", certError)
+      return NextResponse.json({ error: "Certification not found" }, { status: 404 })
+    }
+
+    // Create enrollment with correct status values
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + 90)
+
+    const { data: enrollment, error: enrollError } = await supabase
       .from("user_enrollments")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         certification_id: certificationId,
         status: "active",
         progress: 0,
-        started_at: new Date().toISOString(),
+        payment_status: "pending",
+        due_date: dueDate.toISOString(),
       })
       .select()
       .single()
 
-    if (enrollmentError) {
-      console.error("Enrollment error:", enrollmentError)
-      return NextResponse.json({ error: "Failed to create enrollment" }, { status: 500 })
+    if (enrollError) {
+      console.error("Enrollment creation error:", enrollError)
+      return NextResponse.json({ error: "Failed to create enrollment: " + enrollError.message }, { status: 500 })
+    }
+
+    // Get modules for this certification
+    const { data: modules, error: modulesError } = await supabase
+      .from("modules")
+      .select("id")
+      .eq("certification_id", certificationId)
+      .order("order_num")
+
+    if (modulesError) {
+      console.error("Modules fetch error:", modulesError)
+    }
+
+    // Create user_modules entries if modules exist
+    if (modules && modules.length > 0) {
+      const userModules = modules.map((module) => ({
+        user_id: userId,
+        module_id: module.id,
+        is_completed: false,
+      }))
+
+      const { error: moduleInsertError } = await supabase.from("user_modules").insert(userModules)
+
+      if (moduleInsertError) {
+        console.error("User modules insert error:", moduleInsertError)
+      }
     }
 
     return NextResponse.json({
       success: true,
       enrollment,
-      message: "Successfully enrolled in certification",
+      message: "Enrolled successfully",
     })
   } catch (error) {
-    console.error("Enroll API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Enrollment error:", error)
+    return NextResponse.json({ error: "Internal server error: " + String(error) }, { status: 500 })
   }
 }

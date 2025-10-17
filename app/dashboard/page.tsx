@@ -1,240 +1,319 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { BookOpen, Award, Calendar, TrendingUp, Clock, Users } from "lucide-react"
+import {
+  BookOpen,
+  Clock,
+  Award,
+  TrendingUp,
+  Users,
+  CheckCircle,
+  ArrowRight,
+  PlayCircle,
+  FileText,
+  Loader2,
+} from "lucide-react"
 import Link from "next/link"
-import type { Database } from "@/lib/database.types"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
-type UserEnrollment = Database["public"]["Tables"]["user_enrollments"]["Row"]
-type Certification = Database["public"]["Tables"]["certifications"]["Row"]
-
-interface EnrollmentWithCertification extends UserEnrollment {
-  certifications: Certification
+interface Enrollment {
+  id: string
+  certification_id: string
+  status: string
+  progress: number
+  enrolled_at: string
+  due_date: string | null
+  certifications: {
+    id: string
+    title: string
+    category: string
+    level: string
+    duration: string | null
+    instructor: string | null
+  } | null
 }
 
 export default function DashboardPage() {
-  const [enrollments, setEnrollments] = useState<EnrollmentWithCertification[]>([])
-  const [stats, setStats] = useState({
-    totalEnrollments: 0,
-    completedCourses: 0,
-    inProgressCourses: 0,
-    certificates: 0,
-  })
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient<Database>()
+  const [userId, setUserId] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    async function loadData() {
+      try {
+        // Get current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-  const fetchDashboardData = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) return
+        if (!user) {
+          setLoading(false)
+          return
+        }
 
-      // Fetch user enrollments with certification details
-      const { data: enrollmentsData, error: enrollmentsError } = await supabase
-        .from("user_enrollments")
-        .select(`
-          *,
-          certifications (*)
-        `)
-        .eq("user_id", session.user.id)
+        setUserId(user.id)
 
-      if (enrollmentsError) throw enrollmentsError
+        // Fetch user enrollments
+        const response = await fetch(`/api/user-enrollments?user_id=${user.id}`)
+        const data = await response.json()
 
-      setEnrollments(enrollmentsData || [])
-
-      // Calculate stats
-      const totalEnrollments = enrollmentsData?.length || 0
-      const completedCourses = enrollmentsData?.filter((e) => e.status === "completed").length || 0
-      const inProgressCourses = enrollmentsData?.filter((e) => e.status === "active").length || 0
-
-      setStats({
-        totalEnrollments,
-        completedCourses,
-        inProgressCourses,
-        certificates: completedCourses, // Assuming completed courses = certificates
-      })
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error)
-    } finally {
-      setLoading(false)
+        if (data.enrollments) {
+          setEnrollments(data.enrollments)
+        }
+      } catch (error) {
+        console.error("Error loading dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
 
-  const recentEnrollments = enrollments.slice(0, 3)
+    loadData()
+  }, [supabase])
+
+  const stats = [
+    {
+      title: "Active Courses",
+      value: enrollments.filter((e) => e.status === "in_progress").length.toString(),
+      description: "Currently enrolled",
+      icon: BookOpen,
+      trend: `${enrollments.length} total`,
+      color: "text-blue-600",
+      bgColor: "bg-blue-100",
+    },
+    {
+      title: "Completed Certifications",
+      value: enrollments.filter((e) => e.status === "completed").length.toString(),
+      description: "Certificates earned",
+      icon: Award,
+      trend: "Keep learning!",
+      color: "text-green-600",
+      bgColor: "bg-green-100",
+    },
+    {
+      title: "Average Progress",
+      value:
+        enrollments.length > 0
+          ? `${Math.round(enrollments.reduce((sum, e) => sum + e.progress, 0) / enrollments.length)}%`
+          : "0%",
+      description: "Course completion",
+      icon: TrendingUp,
+      trend: "On track",
+      color: "text-orange-600",
+      bgColor: "bg-orange-100",
+    },
+    {
+      title: "Total Enrollments",
+      value: enrollments.length.toString(),
+      description: "All time",
+      icon: Users,
+      trend: "Lifetime learning",
+      color: "text-purple-600",
+      bgColor: "bg-purple-100",
+    },
+  ]
+
+  const recentActivity = enrollments
+    .sort((a, b) => new Date(b.enrolled_at).getTime() - new Date(a.enrolled_at).getTime())
+    .slice(0, 4)
+    .map((enrollment, index) => ({
+      id: index + 1,
+      type: enrollment.status === "completed" ? "completion" : "enrollment",
+      title:
+        enrollment.status === "completed"
+          ? `Completed: ${enrollment.certifications?.title}`
+          : `Enrolled in: ${enrollment.certifications?.title}`,
+      description:
+        enrollment.status === "completed"
+          ? `Earned certificate with ${enrollment.progress}% score`
+          : `Course in progress - ${enrollment.progress}% complete`,
+      time: new Date(enrollment.enrolled_at).toLocaleDateString(),
+      icon: enrollment.status === "completed" ? CheckCircle : BookOpen,
+      color: enrollment.status === "completed" ? "text-green-600" : "text-blue-600",
+    }))
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Enrollments</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEnrollments}</div>
-            <p className="text-xs text-muted-foreground">Active learning paths</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgressCourses}</div>
-            <p className="text-xs text-muted-foreground">Courses in progress</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completedCourses}</div>
-            <p className="text-xs text-muted-foreground">Courses completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Certificates</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.certificates}</div>
-            <p className="text-xs text-muted-foreground">Certificates earned</p>
-          </CardContent>
-        </Card>
+      {/* Welcome Section */}
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
+        <p className="text-muted-foreground">Here's what's happening with your learning journey today.</p>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid gap-8 md:grid-cols-2">
+      {/* Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.title}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+              <div className={`p-2 rounded-full ${stat.bgColor}`}>
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground">{stat.description}</p>
+              <div className="flex items-center pt-1">
+                <TrendingUp className="h-3 w-3 text-green-600 mr-1" />
+                <span className="text-xs text-green-600">{stat.trend}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Current Courses */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Enrollments</CardTitle>
-            <CardDescription>Your latest course enrollments and progress</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Current Courses
+            </CardTitle>
+            <CardDescription>Your active learning paths</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentEnrollments.length === 0 ? (
+            {enrollments.length === 0 ? (
               <div className="text-center py-8">
-                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Yet</h3>
-                <p className="text-gray-600 mb-4">Start your learning journey by enrolling in a certification.</p>
+                <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 mb-4">No courses enrolled yet</p>
                 <Button asChild>
                   <Link href="/dashboard/certifications">Browse Certifications</Link>
                 </Button>
               </div>
             ) : (
-              recentEnrollments.map((enrollment) => (
-                <div key={enrollment.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{enrollment.certifications.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Enrolled on {new Date(enrollment.enrollment_date).toLocaleDateString()}
-                    </p>
-                    <div className="flex items-center space-x-2">
+              <>
+                {enrollments.slice(0, 3).map((enrollment) => (
+                  <div
+                    key={enrollment.id}
+                    className="space-y-3 p-4 border rounded-lg hover:shadow-sm transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <h4 className="font-semibold">{enrollment.certifications?.title}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          by {enrollment.certifications?.instructor || "Expert Instructor"}
+                        </p>
+                      </div>
                       <Badge variant={enrollment.status === "completed" ? "default" : "secondary"}>
-                        {enrollment.status}
+                        {enrollment.status.replace("_", " ")}
                       </Badge>
                     </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Progress</span>
+                        <span>{enrollment.progress}%</span>
+                      </div>
+                      <Progress value={enrollment.progress} className="h-2" />
+                    </div>
+                    {enrollment.due_date && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Due: {new Date(enrollment.due_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    <Button size="sm" className="w-full" asChild>
+                      <Link href={`/dashboard/courses/${enrollment.certification_id}`}>
+                        <PlayCircle className="h-4 w-4 mr-2" />
+                        Continue Learning
+                      </Link>
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/courses/${enrollment.certification_id}`}>Continue</Link>
-                  </Button>
-                </div>
-              ))
+                ))}
+                <Button asChild variant="outline" className="w-full bg-transparent">
+                  <Link href="/dashboard/certifications">
+                    View All Courses
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
 
+        {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Activity
+            </CardTitle>
+            <CardDescription>Your latest learning activities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
-              <Link href="/dashboard/certifications">
-                <BookOpen className="mr-2 h-4 w-4" />
-                Browse Certifications
-              </Link>
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
-              <Link href="/dashboard/applications">
-                <Calendar className="mr-2 h-4 w-4" />
-                View Applications
-              </Link>
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
-              <Link href="/dashboard/certificates">
-                <Award className="mr-2 h-4 w-4" />
-                My Certificates
-              </Link>
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline" asChild>
-              <Link href="/dashboard/schedule">
-                <Calendar className="mr-2 h-4 w-4" />
-                View Schedule
-              </Link>
-            </Button>
+            {recentActivity.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600">No recent activity</p>
+              </div>
+            ) : (
+              <>
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start space-x-3">
+                    <div className={`p-2 rounded-full bg-gray-100`}>
+                      <activity.icon className={`h-4 w-4 ${activity.color}`} />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium">{activity.title}</p>
+                      <p className="text-xs text-muted-foreground">{activity.description}</p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Learning Progress */}
-      {enrollments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Learning Progress</CardTitle>
-            <CardDescription>Track your progress across all enrolled certifications</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {enrollments.map((enrollment) => (
-                <div key={enrollment.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">{enrollment.certifications.title}</p>
-                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{enrollment.certifications.duration || "Self-paced"}</span>
-                        <Users className="h-3 w-3 ml-2" />
-                        <span>{enrollment.certifications.level || "All levels"}</span>
-                      </div>
-                    </div>
-                    <Badge variant={enrollment.status === "completed" ? "default" : "secondary"}>
-                      {enrollment.status}
-                    </Badge>
-                  </div>
-                  <Progress
-                    value={enrollment.status === "completed" ? 100 : enrollment.progress_percentage || 0}
-                    className="h-2"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{enrollment.progress_percentage || 0}% complete</span>
-                    <span>
-                      {enrollment.status === "completed"
-                        ? "Completed"
-                        : `${enrollment.progress_percentage || 0}% remaining`}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks and shortcuts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+              <Link href="/dashboard/certifications">
+                <Award className="h-6 w-6 mb-2" />
+                Browse Certifications
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+              <Link href="/dashboard/applications">
+                <FileText className="h-6 w-6 mb-2" />
+                View Applications
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+              <Link href="/dashboard/certificates">
+                <CheckCircle className="h-6 w-6 mb-2" />
+                My Certificates
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+              <Link href="/dashboard/profile">
+                <Users className="h-6 w-6 mb-2" />
+                Update Profile
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

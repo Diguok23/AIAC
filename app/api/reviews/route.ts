@@ -7,20 +7,20 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const certificationId = searchParams.get("certification_id")
 
-    let query = supabase.from("modules").select("*")
+    let query = supabase.from("certification_reviews").select("*")
 
     if (certificationId) {
-      query = query.eq("certification_id", certificationId).order("order_num")
+      query = query.eq("certification_id", certificationId).order("created_at", { ascending: false })
     }
 
     const { data, error } = await query
 
     if (error) throw error
 
-    return NextResponse.json({ modules: data || [] })
+    return NextResponse.json({ reviews: data || [] })
   } catch (error) {
-    console.error("Error fetching modules:", error)
-    return NextResponse.json({ error: "Failed to fetch modules" }, { status: 500 })
+    console.error("Error fetching reviews:", error)
+    return NextResponse.json({ error: "Failed to fetch reviews" }, { status: 500 })
   }
 }
 
@@ -29,13 +29,13 @@ export async function POST(request: Request) {
     const supabase = createServerSupabaseClient()
     const body = await request.json()
 
-    const { data, error } = await supabase.from("modules").insert(body).select().single()
+    const { data, error } = await supabase.from("certification_reviews").insert(body).select().single()
 
     if (error) throw error
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error("Error creating module:", error)
-    return NextResponse.json({ error: "Failed to create module" }, { status: 500 })
+    console.error("Error creating review:", error)
+    return NextResponse.json({ error: "Failed to create review" }, { status: 500 })
   }
 }
