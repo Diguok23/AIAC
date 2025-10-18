@@ -1,6 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import * as React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import {
   Sidebar,
   SidebarContent,
@@ -12,207 +15,137 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  BookOpen,
-  FileText,
-  DollarSign,
-  User,
-  Settings,
-  LogOut,
-  GraduationCap,
-  Calendar,
   Award,
-  ChevronDown,
+  BookOpen,
+  Calendar,
+  FileText,
+  LogOut,
+  Settings,
+  User,
+  LayoutDashboard,
+  Home,
+  ShoppingCart,
 } from "lucide-react"
-import { createClient } from "@supabase/supabase-js"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { toast } from "@/components/ui/use-toast"
 
 export function DashboardSidebar() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const supabase = createClientComponentClient()
+  const [userEmail, setUserEmail] = React.useState<string>("")
+  const [userName, setUserName] = React.useState<string>("")
 
-  const handleLogout = async () => {
-    setIsLoading(true)
+  React.useEffect(() => {
+    const getUserInfo = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        setUserEmail(session.user.email || "")
+        setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User")
+      }
+    }
+
+    getUserInfo()
+  }, [supabase])
+
+  const handleSignOut = async () => {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-      )
       await supabase.auth.signOut()
+      toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out",
+      })
       router.push("/login")
     } catch (error) {
-      console.error("Logout error:", error)
-      setIsLoading(false)
+      console.error("Error signing out:", error)
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      })
     }
   }
 
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+    { icon: BookOpen, label: "Certifications", href: "/dashboard/certifications" },
+    { icon: ShoppingCart, label: "Billing", href: "/dashboard/billing" },
+    { icon: FileText, label: "Applications", href: "/dashboard/applications" },
+    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
+    { icon: Award, label: "Certificates", href: "/dashboard/certificates" },
+    { icon: User, label: "Profile", href: "/dashboard/profile" },
+    { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+  ]
+
   return (
     <Sidebar>
-      {/* Header */}
-      <SidebarHeader className="border-b p-4">
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
-          <GraduationCap className="h-6 w-6 text-green-600" />
-          <span>APMIH</span>
+      <SidebarHeader>
+        <Link href="/" className="flex items-center gap-2 px-2 py-3">
+          <Home className="h-6 w-6" />
+          <span className="font-bold">APMIH</span>
         </Link>
       </SidebarHeader>
 
-      {/* Main Content */}
       <SidebarContent>
-        {/* Courses Section */}
         <SidebarGroup>
-          <SidebarGroupLabel>Courses & Learning</SidebarGroupLabel>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/certifications">
-                    <BookOpen className="h-4 w-4" />
-                    <span>My Certifications</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/courses">
-                    <Award className="h-4 w-4" />
-                    <span>My Courses</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/schedule">
-                    <Calendar className="h-4 w-4" />
-                    <span>Schedule</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        {/* Billing Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Finance</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/billing">
-                    <DollarSign className="h-4 w-4" />
-                    <span>Billing</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/pricing">
-                    <FileText className="h-4 w-4" />
-                    <span>View Pricing</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        {/* Applications & Certificates */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Progress</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/applications">
-                    <FileText className="h-4 w-4" />
-                    <span>Applications</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/certificates">
-                    <Award className="h-4 w-4" />
-                    <span>Certificates</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        {/* Account Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/profile">
-                    <User className="h-4 w-4" />
-                    <span>Profile</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/settings">
-                    <Settings className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild>
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer */}
-      <SidebarFooter className="border-t">
+      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton>
-                  <User className="h-4 w-4" />
-                  <span>Menu</span>
-                  <ChevronDown className="ml-auto h-4 w-4" />
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage />
+                    <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{userName}</span>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-56">
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem disabled>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium">{userName}</p>
+                    <p className="text-xs text-muted-foreground">{userEmail}</p>
+                  </div>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/profile">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} disabled={isLoading}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>{isLoading ? "Signing out..." : "Sign Out"}</span>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

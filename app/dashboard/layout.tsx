@@ -3,10 +3,9 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface User {
@@ -55,6 +54,7 @@ export default function DashboardLayout({
         }
 
         // Import and use Supabase
+        const { createClient } = await import("@supabase/supabase-js")
         const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
         // Get the current session
@@ -161,11 +161,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider>
       <DashboardSidebar user={user} />
-      <SidebarInset className="bg-white">
+      <SidebarInset>
         <DashboardHeader user={user} />
-        <main className="flex-1 p-6">{children}</main>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )

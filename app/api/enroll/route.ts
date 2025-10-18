@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     // Get certification details
     const { data: certification, error: certError } = await supabase
       .from("certifications")
-      .select("id, title, description, price")
+      .select("*")
       .eq("id", certificationId)
       .maybeSingle()
 
@@ -42,20 +42,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Certification not found" }, { status: 404 })
     }
 
-    // Get user profile for name
-    const { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("first_name, last_name, email")
-      .eq("user_id", userId)
-      .maybeSingle()
-
-    // Calculate due date (7 days from now)
+    // Create enrollment with correct status values
     const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + 7)
+    dueDate.setDate(dueDate.getDate() + 90)
 
-    const enrollmentDate = new Date().toISOString()
-
-    // Create enrollment
     const { data: enrollment, error: enrollError } = await supabase
       .from("user_enrollments")
       .insert({
@@ -100,49 +90,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send enrollment confirmation email
-    try {
-      const DST_TAX_RATE = 0.16
-      const basePrice = certification.price || 0
-      const dstTax = basePrice * DST_TAX_RATE
-      const totalAmount = basePrice + dstTax
-
-      const firstName = userProfile?.first_name || "Learner"
-      const email = userProfile?.email || "unknown@example.com"
-
-      const emailResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/send-enrollment-email`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            firstName,
-            email,
-            courseName: certification.title,
-            courseDescription: certification.description,
-            basePrice,
-            dstTax,
-            totalAmount,
-            dueDate: dueDate.toISOString(),
-            enrollmentDate,
-          }),
-        },
-      )
-
-      if (!emailResponse.ok) {
-        console.error("Failed to send enrollment email:", await emailResponse.text())
-      }
-    } catch (emailError) {
-      console.error("Error sending enrollment email:", emailError)
-      // Don't fail the enrollment if email fails
-    }
-
     return NextResponse.json({
       success: true,
       enrollment,
-      message: "Enrolled successfully and confirmation email sent",
+      message: "Enrolled successfully",
     })
   } catch (error) {
     console.error("Enrollment error:", error)
