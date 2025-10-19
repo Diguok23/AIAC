@@ -351,6 +351,177 @@ export type Database = {
           },
         ]
       }
+      assignments: {
+        Row: {
+          id: string
+          module_id: string
+          certification_id: string
+          title: string
+          description: string | null
+          instructions: string | null
+          due_date: string | null
+          max_score: number
+          file_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          module_id: string
+          certification_id: string
+          title: string
+          description?: string | null
+          instructions?: string | null
+          due_date?: string | null
+          max_score?: number
+          file_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          module_id?: string
+          certification_id?: string
+          title?: string
+          description?: string | null
+          instructions?: string | null
+          due_date?: string | null
+          max_score?: number
+          file_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          id: string
+          module_id: string
+          certification_id: string
+          title: string
+          description: string | null
+          instructions: string | null
+          exam_date: string | null
+          duration_minutes: number | null
+          max_score: number
+          passing_score: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          module_id: string
+          certification_id: string
+          title: string
+          description?: string | null
+          instructions?: string | null
+          exam_date?: string | null
+          duration_minutes?: number | null
+          max_score?: number
+          passing_score?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          module_id?: string
+          certification_id?: string
+          title?: string
+          description?: string | null
+          instructions?: string | null
+          exam_date?: string | null
+          duration_minutes?: number | null
+          max_score?: number
+          passing_score?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exams_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_materials: {
+        Row: {
+          id: string
+          lesson_id: string
+          module_id: string
+          title: string
+          description: string | null
+          file_url: string
+          file_type: string | null
+          file_size: number
+          order_num: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lesson_id: string
+          module_id: string
+          title: string
+          description?: string | null
+          file_url: string
+          file_type?: string | null
+          file_size: number
+          order_num?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lesson_id?: string
+          module_id?: string
+          title?: string
+          description?: string | null
+          file_url?: string
+          file_type?: string | null
+          file_size?: number
+          order_num?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_materials_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_enrollments: {
         Row: {
           certificate_issued: boolean
