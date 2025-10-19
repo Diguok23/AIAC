@@ -2,90 +2,70 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, CheckCircle2 } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 
 export default function AdminLogin() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   })
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const signupSuccess = localStorage.getItem("adminSignupSuccess")
-    if (signupSuccess) {
-      setSuccess(true)
-      localStorage.removeItem("adminSignupSuccess")
-      const timer = setTimeout(() => setSuccess(false), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [])
+  const validateEmail = (email: string) => {
+    const domain = email.split("@")[1]
+    return domain === "apmih.college"
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
     setError("")
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    // Validate email domain
+    if (!validateEmail(formData.email)) {
+      setError("Only @apmih.college email addresses are allowed")
+      return
+    }
+
     setLoading(true)
 
     try {
-      // Validate email domain
-      if (!formData.email.endsWith("@apmih.college")) {
-        setError("Only @apmih.college email addresses are allowed")
-        setLoading(false)
-        return
-      }
-
       const response = await fetch("/api/admin/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || "Login failed")
+        setError(data.error || "Failed to login")
         return
       }
 
-      // Store admin session
-      localStorage.setItem(
-        "adminSession",
-        JSON.stringify({
-          id: data.admin.id,
-          email: data.admin.email,
-          fullName: data.admin.fullName,
-          role: data.admin.role,
-          token: data.session.access_token,
-        }),
-      )
+      // Store token and admin info
+      localStorage.setItem("adminToken", data.token)
+      localStorage.setItem("adminUser", JSON.stringify(data.admin))
 
-      // Redirect to dashboard
+      // Redirect to admin dashboard
       router.push("/admin")
     } catch (err) {
       setError("An error occurred. Please try again.")
-      console.error("Login error:", err)
+      console.error(err)
     } finally {
       setLoading(false)
     }
@@ -95,74 +75,60 @@ export default function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Admin Login</CardTitle>
+          <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>Login to APMIH College Admin Dashboard</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert className="bg-green-50 border-green-200">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">
-                  Account created successfully! You can now login.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+            <div>
+              <label className="text-sm font-medium">Email</label>
               <Input
-                id="email"
-                name="email"
                 type="email"
+                name="email"
+                placeholder="admin@apmih.college"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="admin@apmih.college"
                 required
-                disabled={loading}
+                className="mt-1"
               />
-              <p className="text-xs text-muted-foreground">Only @apmih.college email addresses are allowed</p>
+              <p className="text-xs text-gray-500 mt-1">Use your @apmih.college email</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div>
+              <label className="text-sm font-medium">Password</label>
               <Input
-                id="password"
-                name="password"
                 type="password"
+                name="password"
+                placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter your password"
                 required
-                disabled={loading}
+                className="mt-1"
               />
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                "Login to Dashboard"
-              )}
+              {loading ? "Logging in..." : "Login"}
             </Button>
-
-            <div className="text-center text-sm">
-              Don't have an admin account?{" "}
-              <Link href="/admin/signup" className="text-primary hover:underline font-medium">
-                Create one here
-              </Link>
-            </div>
           </form>
+
+          <div className="mt-6 space-y-3 text-sm">
+            <div className="text-center">
+              <p className="text-gray-600">
+                Don't have an account?{" "}
+                <Link href="/admin/signup" className="text-blue-600 hover:underline font-medium">
+                  Create one here
+                </Link>
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
