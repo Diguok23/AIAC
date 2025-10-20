@@ -11,14 +11,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Student ID is required" }, { status: 400 })
     }
 
-    // Get student info
+    // Get student info from user_profiles
     const { data: student, error: studentError } = await supabase
       .from("user_profiles")
-      .select("user_id")
+      .select("user_id, email, full_name")
       .eq("id", studentId)
       .single()
 
     if (studentError || !student) {
+      console.error("Student fetch error:", studentError)
       return NextResponse.json({ error: "Student not found" }, { status: 404 })
     }
 
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
         total_courses: 0,
         total_students: 0,
         average_rating: 0,
+        created_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -53,7 +55,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to promote user" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, instructor: newInstructor })
+    return NextResponse.json({
+      success: true,
+      instructor: newInstructor,
+      message: `${student.full_name} has been promoted to instructor`,
+    })
   } catch (error) {
     console.error("Promote to instructor error:", error)
     return NextResponse.json({ error: "An error occurred" }, { status: 500 })
