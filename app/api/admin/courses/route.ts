@@ -7,16 +7,17 @@ export async function GET() {
   try {
     const { data: courses, error } = await supabase.from("certifications").select("*")
 
-    if (error) {
-      console.error("Error fetching courses:", error)
-      return NextResponse.json([], { status: 200 })
+    if (error) throw error
+
+    if (!courses) {
+      return NextResponse.json([])
     }
 
     // Fetch enrollments
     const { data: enrollments } = await supabase.from("user_enrollments").select("certification_id")
 
-    const formattedCourses = (courses || []).map((course: any) => {
-      const courseEnrollments = (enrollments || []).filter((e) => e.certification_id === course.id)
+    const formattedCourses = courses.map((course: any) => {
+      const courseEnrollments = (enrollments || []).filter((e: any) => e.certification_id === course.id)
 
       return {
         id: course.id,
@@ -36,6 +37,6 @@ export async function GET() {
     return NextResponse.json(formattedCourses)
   } catch (error) {
     console.error("Fetch courses error:", error)
-    return NextResponse.json([], { status: 200 })
+    return NextResponse.json([])
   }
 }

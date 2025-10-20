@@ -7,16 +7,23 @@ export async function GET() {
   try {
     const { data: instructors, error } = await supabase.from("instructors").select("*")
 
-    if (error) {
-      console.error("Error fetching instructors:", error)
-      return NextResponse.json([], { status: 200 })
+    if (error) throw error
+
+    if (!instructors) {
+      return NextResponse.json([])
     }
 
     // Get auth users
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    let authUsers: any[] = []
+    try {
+      const { data: users } = await supabase.auth.admin.listUsers()
+      authUsers = users?.users || []
+    } catch (err) {
+      console.log("Could not fetch auth users:", err)
+    }
 
-    const formattedInstructors = (instructors || []).map((instructor: any) => {
-      const authUser = authUsers?.users?.find((u) => u.id === instructor.user_id)
+    const formattedInstructors = instructors.map((instructor: any) => {
+      const authUser = authUsers.find((u) => u.id === instructor.user_id)
 
       return {
         id: instructor.id,
@@ -35,6 +42,6 @@ export async function GET() {
     return NextResponse.json(formattedInstructors)
   } catch (error) {
     console.error("Fetch instructors error:", error)
-    return NextResponse.json([], { status: 200 })
+    return NextResponse.json([])
   }
 }

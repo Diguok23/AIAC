@@ -5,35 +5,38 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
-    // Fetch from user_billing instead of billing_transactions
     const { data: billingData, error } = await supabase
       .from("user_billing")
       .select("*")
       .order("updated_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching billing data:", error)
-      return NextResponse.json(
-        {
-          totalRevenue: 0,
-          totalBilled: 0,
-          totalPaid: 0,
-          transactions: [],
-          monthlyStats: [],
-        },
-        { status: 200 },
-      )
+    if (error) throw error
+
+    if (!billingData) {
+      return NextResponse.json({
+        totalRevenue: 0,
+        totalPaid: 0,
+        outstandingTotal: 0,
+        transactions: [],
+        monthlyStats: [],
+      })
     }
 
     // Fetch user profiles
     const { data: userProfiles } = await supabase.from("user_profiles").select("id, full_name, user_id")
 
-    // Fetch auth users for emails
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    // Get auth users
+    let authUsers: any[] = []
+    try {
+      const { data: users } = await supabase.auth.admin.listUsers()
+      authUsers = users?.users || []
+    } catch (err) {
+      console.log("Could not fetch auth users:", err)
+    }
 
-    const formattedTransactions = (billingData || []).map((bill: any) => {
-      const userProfile = userProfiles?.find((p) => p.id === bill.user_id)
-      const authUser = authUsers?.users?.find((u) => u.id === userProfile?.user_id)
+    const formattedTransactions = billingData.map((bill: any) => {
+      const userProfile = (userProfiles || []).find((p: any) => p.id === bill.user_id)
+      const authUser = authUsers.find((u) => u.id === userProfile?.user_id)
 
       return {
         id: bill.id,
@@ -62,15 +65,12 @@ export async function GET() {
     })
   } catch (error) {
     console.error("Fetch billing error:", error)
-    return NextResponse.json(
-      {
-        totalRevenue: 0,
-        totalBilled: 0,
-        totalPaid: 0,
-        transactions: [],
-        monthlyStats: [],
-      },
-      { status: 200 },
-    )
+    return NextResponse.json({
+      totalRevenue: 0,
+      totalPaid: 0,
+      outstandingTotal: 0,
+      transactions: [],
+      monthlyStats: [],
+    })
   }
 }

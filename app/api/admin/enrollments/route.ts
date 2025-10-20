@@ -5,24 +5,21 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
-    // Fetch directly from user_enrollments
     const { data: enrollments, error } = await supabase
       .from("user_enrollments")
       .select("*")
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching enrollments:", error)
-      return NextResponse.json(
-        {
-          totalEnrollments: 0,
-          activeEnrollments: 0,
-          completedEnrollments: 0,
-          totalStudents: 0,
-          enrollments: [],
-        },
-        { status: 200 },
-      )
+    if (error) throw error
+
+    if (!enrollments) {
+      return NextResponse.json({
+        totalEnrollments: 0,
+        activeEnrollments: 0,
+        completedEnrollments: 0,
+        totalStudents: 0,
+        enrollments: [],
+      })
     }
 
     // Fetch user profiles
@@ -31,13 +28,19 @@ export async function GET() {
     // Fetch certifications
     const { data: certifications } = await supabase.from("certifications").select("id, title")
 
-    // Fetch auth users for emails
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    // Get auth users
+    let authUsers: any[] = []
+    try {
+      const { data: users } = await supabase.auth.admin.listUsers()
+      authUsers = users?.users || []
+    } catch (err) {
+      console.log("Could not fetch auth users:", err)
+    }
 
-    const formattedEnrollments = (enrollments || []).map((e: any) => {
-      const userProfile = userProfiles?.find((p) => p.id === e.user_id)
-      const authUser = authUsers?.users?.find((u) => u.id === userProfile?.user_id)
-      const course = certifications?.find((c) => c.id === e.certification_id)
+    const formattedEnrollments = enrollments.map((e: any) => {
+      const userProfile = (userProfiles || []).find((p: any) => p.id === e.user_id)
+      const authUser = authUsers.find((u) => u.id === userProfile?.user_id)
+      const course = (certifications || []).find((c: any) => c.id === e.certification_id)
 
       return {
         id: e.id,
@@ -67,15 +70,12 @@ export async function GET() {
     })
   } catch (error) {
     console.error("Fetch enrollments error:", error)
-    return NextResponse.json(
-      {
-        totalEnrollments: 0,
-        activeEnrollments: 0,
-        completedEnrollments: 0,
-        totalStudents: 0,
-        enrollments: [],
-      },
-      { status: 200 },
-    )
+    return NextResponse.json({
+      totalEnrollments: 0,
+      activeEnrollments: 0,
+      completedEnrollments: 0,
+      totalStudents: 0,
+      enrollments: [],
+    })
   }
 }

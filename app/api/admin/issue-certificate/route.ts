@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const certificateNumber = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
     // Create certificate record
-    const { data: certificate, error } = await supabase
+    const { data: certificate, error: certError } = await supabase
       .from("certificates")
       .insert({
         certificate_number: certificateNumber,
@@ -28,8 +28,8 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) {
-      console.error("Error issuing certificate:", error)
+    if (certError) {
+      console.error("Error issuing certificate:", certError)
       return NextResponse.json({ error: "Failed to issue certificate" }, { status: 500 })
     }
 

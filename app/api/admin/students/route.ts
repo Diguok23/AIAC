@@ -5,46 +5,51 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
-    // Fetch directly from user_profiles
-    const { data: students, error: studentsError } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, phone_number, address, created_at, user_id")
+    // Fetch all user profiles
+    const { data: profiles, error: profilesError } = await supabase.from("user_profiles").select("*")
 
-    if (studentsError) {
-      console.error("Error fetching student profiles:", studentsError)
-      return NextResponse.json([], { status: 200 })
+    if (profilesError) throw profilesError
+
+    if (!profiles || profiles.length === 0) {
+      return NextResponse.json([])
     }
 
-    // Get emails from auth table
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    // Get all auth users
+    let authUsers: any[] = []
+    try {
+      const { data: users } = await supabase.auth.admin.listUsers()
+      authUsers = users?.users || []
+    } catch (err) {
+      console.log("Could not fetch auth users:", err)
+    }
 
-    // Fetch enrollments for each student
+    // Fetch all enrollments
     const { data: enrollments } = await supabase.from("user_enrollments").select("user_id")
 
-    // Fetch billing data
+    // Fetch all billing data
     const { data: billing } = await supabase.from("user_billing").select("user_id, total_spent")
 
-    const formattedStudents = (students || []).map((student: any) => {
-      const authUser = authUsers?.users?.find((u) => u.id === student.user_id)
-      const studentEnrollments = (enrollments || []).filter((e) => e.user_id === student.id)
-      const billingRecord = (billing || []).find((b) => b.user_id === student.id)
+    const students = profiles.map((profile: any) => {
+      const authUser = authUsers.find((u) => u.id === profile.user_id)
+      const userEnrollments = (enrollments || []).filter((e: any) => e.user_id === profile.id)
+      const billingRecord = (billing || []).find((b: any) => b.user_id === profile.id)
 
       return {
-        id: student.id,
-        email: authUser?.email || "N/A",
-        fullName: student.full_name || "N/A",
-        phone: student.phone_number || "N/A",
-        address: student.address || "N/A",
-        enrollmentCount: studentEnrollments.length,
+        id: profile.id,
+        email: authUser?.email || profile.email || "N/A",
+        fullName: profile.full_name || "N/A",
+        phone: profile.phone_number || "N/A",
+        address: profile.address || "N/A",
+        enrollmentCount: userEnrollments.length || 0,
         totalSpent: billingRecord?.total_spent || 0,
         verificationStatus: authUser ? "verified" : "pending",
-        createdAt: student.created_at,
+        createdAt: profile.created_at,
       }
     })
 
-    return NextResponse.json(formattedStudents)
+    return NextResponse.json(students)
   } catch (error) {
     console.error("Fetch students error:", error)
-    return NextResponse.json([], { status: 200 })
+    return NextResponse.json([])
   }
 }

@@ -10,9 +10,10 @@ export async function GET() {
       .select("*")
       .order("issue_date", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching certificates:", error)
-      return NextResponse.json([], { status: 200 })
+    if (error) throw error
+
+    if (!certificates) {
+      return NextResponse.json([])
     }
 
     // Fetch user profiles
@@ -21,13 +22,19 @@ export async function GET() {
     // Fetch certifications
     const { data: certifications } = await supabase.from("certifications").select("id, title")
 
-    // Fetch auth users for emails
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    // Get auth users
+    let authUsers: any[] = []
+    try {
+      const { data: users } = await supabase.auth.admin.listUsers()
+      authUsers = users?.users || []
+    } catch (err) {
+      console.log("Could not fetch auth users:", err)
+    }
 
-    const formattedCerts = (certificates || []).map((cert: any) => {
-      const userProfile = userProfiles?.find((p) => p.id === cert.user_id)
-      const authUser = authUsers?.users?.find((u) => u.id === userProfile?.user_id)
-      const course = certifications?.find((c) => c.id === cert.certification_id)
+    const formattedCerts = certificates.map((cert: any) => {
+      const userProfile = (userProfiles || []).find((p: any) => p.id === cert.user_id)
+      const authUser = authUsers.find((u) => u.id === userProfile?.user_id)
+      const course = (certifications || []).find((c: any) => c.id === cert.certification_id)
 
       return {
         id: cert.id,
@@ -45,6 +52,6 @@ export async function GET() {
     return NextResponse.json(formattedCerts)
   } catch (error) {
     console.error("Fetch certificates error:", error)
-    return NextResponse.json([], { status: 200 })
+    return NextResponse.json([])
   }
 }

@@ -12,9 +12,13 @@ export async function POST(request: Request) {
     }
 
     // Get student info
-    const { data: student } = await supabase.from("user_profiles").select("user_id").eq("id", studentId).single()
+    const { data: student, error: studentError } = await supabase
+      .from("user_profiles")
+      .select("user_id")
+      .eq("id", studentId)
+      .single()
 
-    if (!student) {
+    if (studentError || !student) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 })
     }
 
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     // Create instructor record
-    const { data: newInstructor, error } = await supabase
+    const { data: newInstructor, error: insertError } = await supabase
       .from("instructors")
       .insert({
         user_id: student.user_id,
@@ -44,8 +48,8 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) {
-      console.error("Error promoting to instructor:", error)
+    if (insertError) {
+      console.error("Error promoting to instructor:", insertError)
       return NextResponse.json({ error: "Failed to promote user" }, { status: 500 })
     }
 
