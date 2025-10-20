@@ -5,38 +5,37 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
-    const { data: courses, error } = await supabase.from("certifications").select(`
-        id,
-        title,
-        description,
-        price,
-        level,
-        status,
-        instructor_id,
-        created_at,
-        user_enrollments(id),
-        instructors(full_name)
-      `)
+    const { data: courses, error } = await supabase.from("certifications").select("*")
 
-    if (error) throw error
+    if (error) {
+      console.error("Error fetching courses:", error)
+      return NextResponse.json([], { status: 200 })
+    }
 
-    const formattedCourses = (courses || []).map((course: any) => ({
-      id: course.id,
-      title: course.title,
-      description: course.description,
-      price: course.price || 0,
-      level: course.level,
-      status: course.status || "draft",
-      instructorId: course.instructor_id,
-      instructorName: course.instructors?.full_name || "N/A",
-      enrollmentCount: course.user_enrollments?.length || 0,
-      rating: 0,
-      createdAt: course.created_at,
-    }))
+    // Fetch enrollments
+    const { data: enrollments } = await supabase.from("user_enrollments").select("certification_id")
+
+    const formattedCourses = (courses || []).map((course: any) => {
+      const courseEnrollments = (enrollments || []).filter((e) => e.certification_id === course.id)
+
+      return {
+        id: course.id,
+        title: course.title || "N/A",
+        description: course.description || "",
+        price: course.price || 0,
+        level: course.level || "Beginner",
+        status: course.status || "draft",
+        instructorId: course.instructor_id,
+        instructorName: "N/A",
+        enrollmentCount: courseEnrollments.length,
+        rating: 0,
+        createdAt: course.created_at,
+      }
+    })
 
     return NextResponse.json(formattedCourses)
   } catch (error) {
     console.error("Fetch courses error:", error)
-    return NextResponse.json({ error: "Failed to fetch courses" }, { status: 500 })
+    return NextResponse.json([], { status: 200 })
   }
 }

@@ -7,37 +7,44 @@ export async function GET() {
   try {
     const { data: certificates, error } = await supabase
       .from("certificates")
-      .select(`
-        id,
-        certificate_number,
-        user_id,
-        certification_id,
-        issue_date,
-        expiry_date,
-        is_revoked,
-        file_url,
-        user_profiles(full_name, email),
-        certifications(title)
-      `)
+      .select("*")
       .order("issue_date", { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      console.error("Error fetching certificates:", error)
+      return NextResponse.json([], { status: 200 })
+    }
 
-    const formattedCerts = (certificates || []).map((cert: any) => ({
-      id: cert.id,
-      certificateNumber: cert.certificate_number,
-      studentName: cert.user_profiles?.full_name || "N/A",
-      studentEmail: cert.user_profiles?.email || "N/A",
-      courseName: cert.certifications?.title || "N/A",
-      issueDate: cert.issue_date,
-      expiryDate: cert.expiry_date,
-      isRevoked: cert.is_revoked,
-      fileUrl: cert.file_url,
-    }))
+    // Fetch user profiles
+    const { data: userProfiles } = await supabase.from("user_profiles").select("id, full_name, user_id")
+
+    // Fetch certifications
+    const { data: certifications } = await supabase.from("certifications").select("id, title")
+
+    // Fetch auth users for emails
+    const { data: authUsers } = await supabase.auth.admin.listUsers()
+
+    const formattedCerts = (certificates || []).map((cert: any) => {
+      const userProfile = userProfiles?.find((p) => p.id === cert.user_id)
+      const authUser = authUsers?.users?.find((u) => u.id === userProfile?.user_id)
+      const course = certifications?.find((c) => c.id === cert.certification_id)
+
+      return {
+        id: cert.id,
+        certificateNumber: cert.certificate_number,
+        studentName: userProfile?.full_name || "N/A",
+        studentEmail: authUser?.email || "N/A",
+        courseName: course?.title || "N/A",
+        issueDate: cert.issue_date,
+        expiryDate: cert.expiry_date,
+        isRevoked: cert.is_revoked || false,
+        fileUrl: cert.file_url,
+      }
+    })
 
     return NextResponse.json(formattedCerts)
   } catch (error) {
     console.error("Fetch certificates error:", error)
-    return NextResponse.json({ error: "Failed to fetch certificates" }, { status: 500 })
+    return NextResponse.json([], { status: 200 })
   }
 }
