@@ -1,45 +1,37 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Download } from "lucide-react"
+import { Loader2, Search, DollarSign } from "lucide-react"
+import { toast } from "sonner"
 
 interface Transaction {
   id: string
   userId: string
   userEmail: string
   userName: string
-  enrollmentId: string
-  courseName: string
-  amount: number
-  taxAmount: number
-  totalAmount: number
-  paymentMethod?: string
-  status: "pending" | "completed" | "failed" | "refunded"
-  createdAt: string
+  totalSpent: number
+  totalPaid: number
+  outstandingBalance: number
+  status: string
+  lastPaymentDate?: string
+  updatedAt: string
 }
 
 interface BillingStats {
   totalRevenue: number
-  totalTax: number
-  pendingAmount: number
-  transactions: Transaction[]
-  monthlyStats: Array<{
-    month: string
-    revenue: number
-    count: number
-  }>
+  totalPaid: number
+  outstandingTotal: number
 }
 
 export default function BillingPage() {
-  const [stats, setStats] = useState<BillingStats | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [stats, setStats] = useState<BillingStats>({ totalRevenue: 0, totalPaid: 0, outstandingTotal: 0 })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("")
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
 
   useEffect(() => {
@@ -47,64 +39,30 @@ export default function BillingPage() {
   }, [])
 
   useEffect(() => {
-    if (!stats) return
-
-    let filtered = stats.transactions
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (t) =>
-          t.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.courseName.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    if (statusFilter) {
-      filtered = filtered.filter((t) => t.status === statusFilter)
-    }
-
+    const filtered = transactions.filter(
+      (trans) =>
+        trans.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trans.userName.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
     setFilteredTransactions(filtered)
-  }, [searchTerm, statusFilter, stats])
+  }, [searchTerm, transactions])
 
   const fetchBillingData = async () => {
     try {
       const response = await fetch("/api/admin/billing/transactions")
       const data = await response.json()
-      setStats(data)
+      setTransactions(data.transactions)
+      setStats({
+        totalRevenue: data.totalRevenue,
+        totalPaid: data.totalPaid,
+        outstandingTotal: data.outstandingTotal,
+      })
     } catch (error) {
       console.error("Failed to fetch billing data:", error)
+      toast.error("Failed to load billing data")
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleExport = () => {
-    if (!stats) return
-
-    const csv = [
-      ["Email", "Name", "Course", "Amount", "Tax", "Total", "Payment Method", "Status", "Date"],
-      ...filteredTransactions.map((t) => [
-        t.userEmail,
-        t.userName,
-        t.courseName,
-        t.amount,
-        t.taxAmount,
-        t.totalAmount,
-        t.paymentMethod || "N/A",
-        t.status,
-        new Date(t.createdAt).toLocaleDateString(),
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
-
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "billing-transactions.csv"
-    a.click()
   }
 
   if (loading) {
@@ -115,83 +73,62 @@ export default function BillingPage() {
     )
   }
 
-  if (!stats) {
-    return (
-      <div className="p-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Failed to load billing data</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-8 space-y-8">
-      {/* Stats Cards */}
+    <div className="p-8 space-y-4">
+      <div>
+        <h1 className="text-3xl font-bold">Billing</h1>
+        <p className="text-muted-foreground">Manage billing and payments</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+          <CardHeader className="pb-2">
+            <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {stats.totalRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">All time earnings</p>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              <p className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tax Collected</CardTitle>
+          <CardHeader className="pb-2">
+            <p className="text-sm font-medium text-muted-foreground">Total Paid</p>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {stats.totalTax.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">16% DST tax</p>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              <p className="text-2xl font-bold">${stats.totalPaid.toFixed(2)}</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
+          <CardHeader className="pb-2">
+            <p className="text-sm font-medium text-muted-foreground">Outstanding Balance</p>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {stats.pendingAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Awaiting completion</p>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-orange-600" />
+              <p className="text-2xl font-bold">${stats.outstandingTotal.toFixed(2)}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Transactions */}
       <Card>
         <CardHeader>
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Transactions</h2>
-            <div className="flex gap-4 flex-wrap">
-              <div className="flex-1 min-w-64 relative">
-                <Search className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by email, name or course..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-              >
-                <option value="">All Status</option>
-                <option value="completed">Completed</option>
-                <option value="pending">Pending</option>
-                <option value="failed">Failed</option>
-                <option value="refunded">Refunded</option>
-              </select>
-              <Button onClick={handleExport} variant="outline" className="gap-2 bg-transparent">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by email or name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
             </div>
           </div>
         </CardHeader>
@@ -200,48 +137,36 @@ export default function BillingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Tax (16%)</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Payment Method</TableHead>
+                  <TableHead>User Email</TableHead>
+                  <TableHead>Full Name</TableHead>
+                  <TableHead>Total Billed</TableHead>
+                  <TableHead>Total Paid</TableHead>
+                  <TableHead>Outstanding</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Last Payment</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{transaction.userEmail}</TableCell>
-                    <TableCell>{transaction.userName}</TableCell>
-                    <TableCell>{transaction.courseName}</TableCell>
-                    <TableCell>KES {transaction.amount.toLocaleString()}</TableCell>
-                    <TableCell>KES {transaction.taxAmount.toLocaleString()}</TableCell>
-                    <TableCell className="font-semibold">KES {transaction.totalAmount.toLocaleString()}</TableCell>
-                    <TableCell>{transaction.paymentMethod || "N/A"}</TableCell>
+                {filteredTransactions.map((trans) => (
+                  <TableRow key={trans.id}>
+                    <TableCell className="font-medium">{trans.userEmail}</TableCell>
+                    <TableCell>{trans.userName}</TableCell>
+                    <TableCell>${trans.totalSpent.toFixed(2)}</TableCell>
+                    <TableCell>${trans.totalPaid.toFixed(2)}</TableCell>
+                    <TableCell>${trans.outstandingBalance.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          transaction.status === "completed"
-                            ? "default"
-                            : transaction.status === "pending"
-                              ? "secondary"
-                              : "destructive"
-                        }
-                      >
-                        {transaction.status}
-                      </Badge>
+                      <Badge variant={trans.status === "paid" ? "default" : "secondary"}>{trans.status}</Badge>
                     </TableCell>
-                    <TableCell>{new Date(transaction.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {trans.lastPaymentDate ? new Date(trans.lastPaymentDate).toLocaleDateString() : "N/A"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
           {filteredTransactions.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">No transactions found</div>
+            <div className="text-center py-8 text-muted-foreground">No billing records found</div>
           )}
         </CardContent>
       </Card>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Loader2, Search, CheckCircle2, XCircle } from "lucide-react"
+import { Loader2, Search, CheckCircle2, XCircle, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
 interface Instructor {
@@ -23,16 +23,29 @@ interface Instructor {
   createdAt: string
 }
 
+interface Student {
+  id: string
+  email: string
+  fullName: string
+  phone: string
+  enrollmentCount: number
+}
+
 export default function InstructorsPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
+  const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([])
   const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [promoteFormData, setPromoteFormData] = useState({ bio: "", expertise: "" })
 
   useEffect(() => {
     fetchInstructors()
+    fetchStudents()
   }, [])
 
   useEffect(() => {
@@ -51,8 +64,53 @@ export default function InstructorsPage() {
       setInstructors(data)
     } catch (error) {
       console.error("Failed to fetch instructors:", error)
+      toast.error("Failed to load instructors")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch("/api/admin/students")
+      const data = await response.json()
+      setStudents(data)
+    } catch (error) {
+      console.error("Failed to fetch students:", error)
+    }
+  }
+
+  const handlePromoteToInstructor = async () => {
+    if (!selectedStudent) return
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/admin/promote-to-instructor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: selectedStudent.id,
+          bio: promoteFormData.bio,
+          expertise: promoteFormData.expertise,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success("User promoted to instructor successfully")
+        setShowPromoteDialog(false)
+        setSelectedStudent(null)
+        setPromoteFormData({ bio: "", expertise: "" })
+        fetchInstructors()
+      } else {
+        toast.error(data.error || "Failed to promote user")
+      }
+    } catch (error) {
+      console.error("Error promoting to instructor:", error)
+      toast.error("An error occurred")
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -131,6 +189,10 @@ export default function InstructorsPage() {
                 className="pl-8"
               />
             </div>
+            <Button onClick={() => setShowPromoteDialog(true)} className="gap-2">
+              <UserPlus className="h-4 w-4" />
+              Promote Student
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -217,6 +279,84 @@ export default function InstructorsPage() {
                 <Button onClick={handleReject} disabled={isProcessing} variant="destructive" className="flex-1 gap-2">
                   <XCircle className="h-4 w-4" />
                   Reject
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showPromoteDialog && (
+        <Dialog open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Promote Student to Instructor</DialogTitle>
+              <DialogDescription>Select a student and provide instructor details</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Select Student</label>
+                <select
+                  value={selectedStudent?.id || ""}
+                  onChange={(e) => {
+                    const student = students.find((s) => s.id === e.target.value)
+                    setSelectedStudent(student || null)
+                  }}
+                  className="w-full border rounded-md p-2 mt-1"
+                >
+                  <option value="">Choose a student...</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.fullName} ({student.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedStudent && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Bio</label>
+                    <textarea
+                      value={promoteFormData.bio}
+                      onChange={(e) => setPromoteFormData({ ...promoteFormData, bio: e.target.value })}
+                      placeholder="Enter instructor bio..."
+                      className="w-full border rounded-md p-2 mt-1 h-24"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Expertise</label>
+                    <input
+                      type="text"
+                      value={promoteFormData.expertise}
+                      onChange={(e) => setPromoteFormData({ ...promoteFormData, expertise: e.target.value })}
+                      placeholder="Enter areas of expertise..."
+                      className="w-full border rounded-md p-2 mt-1"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPromoteDialog(false)
+                    setSelectedStudent(null)
+                    setPromoteFormData({ bio: "", expertise: "" })
+                  }}
+                  disabled={isProcessing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handlePromoteToInstructor}
+                  disabled={isProcessing || !selectedStudent}
+                  className="flex-1 gap-2"
+                >
+                  {isProcessing ? "Promoting..." : "Promote to Instructor"}
                 </Button>
               </div>
             </div>

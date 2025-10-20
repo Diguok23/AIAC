@@ -5,29 +5,41 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Download } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Loader2, Search, Award } from "lucide-react"
+import { toast } from "sonner"
 
 interface Student {
   id: string
   email: string
   fullName: string
-  phone?: string
-  country?: string
+  phone: string
+  address: string
   enrollmentCount: number
   totalSpent: number
   verificationStatus: string
   createdAt: string
 }
 
+interface Certification {
+  id: string
+  title: string
+}
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
+  const [certifications, setCertifications] = useState<Certification[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [showCertificateDialog, setShowCertificateDialog] = useState(false)
+  const [selectedCertification, setSelectedCertification] = useState("")
+  const [isIssuingCertificate, setIsIssuingCertificate] = useState(false)
 
   useEffect(() => {
     fetchStudents()
+    fetchCertifications()
   }, [])
 
   useEffect(() => {
@@ -46,34 +58,55 @@ export default function StudentsPage() {
       setStudents(data)
     } catch (error) {
       console.error("Failed to fetch students:", error)
+      toast.error("Failed to load students")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleExport = () => {
-    const csv = [
-      ["Email", "Full Name", "Phone", "Country", "Enrollments", "Total Spent", "Status", "Joined Date"],
-      ...filteredStudents.map((s) => [
-        s.email,
-        s.fullName,
-        s.phone || "N/A",
-        s.country || "N/A",
-        s.enrollmentCount,
-        `KES ${s.totalSpent.toLocaleString()}`,
-        s.verificationStatus,
-        new Date(s.createdAt).toLocaleDateString(),
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
+  const fetchCertifications = async () => {
+    try {
+      const response = await fetch("/api/certifications")
+      const data = await response.json()
+      setCertifications(data)
+    } catch (error) {
+      console.error("Failed to fetch certifications:", error)
+    }
+  }
 
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "students.csv"
-    a.click()
+  const handleIssueCertificate = async () => {
+    if (!selectedStudent || !selectedCertification) {
+      toast.error("Please select a certification")
+      return
+    }
+
+    setIsIssuingCertificate(true)
+    try {
+      const response = await fetch("/api/admin/issue-certificate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: selectedStudent.id,
+          certificationId: selectedCertification,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success("Certificate issued successfully")
+        setShowCertificateDialog(false)
+        setSelectedStudent(null)
+        setSelectedCertification("")
+      } else {
+        toast.error(data.error || "Failed to issue certificate")
+      }
+    } catch (error) {
+      console.error("Error issuing certificate:", error)
+      toast.error("An error occurred")
+    } finally {
+      setIsIssuingCertificate(false)
+    }
   }
 
   if (loading) {
@@ -86,15 +119,9 @@ export default function StudentsPage() {
 
   return (
     <div className="p-8 space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Students</h1>
-          <p className="text-muted-foreground">Manage all student accounts</p>
-        </div>
-        <Button onClick={handleExport} variant="outline" className="gap-2 bg-transparent">
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold">Students</h1>
+        <p className="text-muted-foreground">Manage student accounts and enrollments</p>
       </div>
 
       <Card>
@@ -118,11 +145,12 @@ export default function StudentsPage() {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Full Name</TableHead>
-                  <TableHead>Country</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Address</TableHead>
                   <TableHead>Enrollments</TableHead>
                   <TableHead>Total Spent</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -130,15 +158,25 @@ export default function StudentsPage() {
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.email}</TableCell>
                     <TableCell>{student.fullName}</TableCell>
-                    <TableCell>{student.country || "N/A"}</TableCell>
+                    <TableCell>{student.phone || "N/A"}</TableCell>
+                    <TableCell>{student.address || "N/A"}</TableCell>
                     <TableCell>{student.enrollmentCount}</TableCell>
-                    <TableCell>KES {student.totalSpent.toLocaleString()}</TableCell>
+                    <TableCell>${student.totalSpent.toFixed(2)}</TableCell>
+                    <TableCell className="capitalize">{student.verificationStatus}</TableCell>
                     <TableCell>
-                      <Badge variant={student.verificationStatus === "verified" ? "default" : "secondary"}>
-                        {student.verificationStatus}
-                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedStudent(student)
+                          setShowCertificateDialog(true)
+                        }}
+                        className="gap-2"
+                      >
+                        <Award className="h-4 w-4" />
+                        Issue Certificate
+                      </Button>
                     </TableCell>
-                    <TableCell>{new Date(student.createdAt).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -149,6 +187,63 @@ export default function StudentsPage() {
           )}
         </CardContent>
       </Card>
+
+      {showCertificateDialog && selectedStudent && (
+        <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Issue Certificate</DialogTitle>
+              <DialogDescription>
+                Select a course to issue a certificate for {selectedStudent.fullName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Student</label>
+                <p className="text-sm text-muted-foreground">{selectedStudent.fullName}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Select Course/Certification</label>
+                <select
+                  value={selectedCertification}
+                  onChange={(e) => setSelectedCertification(e.target.value)}
+                  className="w-full border rounded-md p-2 mt-1"
+                >
+                  <option value="">Choose a certification...</option>
+                  {certifications.map((cert) => (
+                    <option key={cert.id} value={cert.id}>
+                      {cert.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCertificateDialog(false)
+                    setSelectedStudent(null)
+                    setSelectedCertification("")
+                  }}
+                  disabled={isIssuingCertificate}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleIssueCertificate}
+                  disabled={isIssuingCertificate || !selectedCertification}
+                  className="flex-1 gap-2"
+                >
+                  {isIssuingCertificate ? "Issuing..." : "Issue Certificate"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

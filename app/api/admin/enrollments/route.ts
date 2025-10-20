@@ -5,10 +5,11 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
+    // Fetch directly from user_enrollments
     const { data: enrollments, error } = await supabase
       .from("user_enrollments")
       .select("*")
-      .order("start_date", { ascending: false })
+      .order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching enrollments:", error)
@@ -37,21 +38,18 @@ export async function GET() {
       const userProfile = userProfiles?.find((p) => p.id === e.user_id)
       const authUser = authUsers?.users?.find((u) => u.id === userProfile?.user_id)
       const course = certifications?.find((c) => c.id === e.certification_id)
-      const taxAmount = Math.round((e.price || 0) * 0.16 * 100) / 100
 
       return {
         id: e.id,
         studentEmail: authUser?.email || "N/A",
         studentName: userProfile?.full_name || "N/A",
+        studentId: e.user_id,
         courseName: course?.title || "N/A",
-        price: e.price || 0,
-        taxAmount,
-        totalAmount: (e.price || 0) + taxAmount,
         status: e.status || "active",
         paymentStatus: e.payment_status || "pending",
-        startDate: e.start_date,
-        dueDate: e.due_date,
-        progress: 0,
+        progress: e.progress || 0,
+        createdAt: e.created_at,
+        completedAt: e.completed_at,
       }
     })
 

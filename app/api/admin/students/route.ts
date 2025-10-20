@@ -5,10 +5,10 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET() {
   try {
-    // Fetch user profiles with their data
+    // Fetch directly from user_profiles
     const { data: students, error: studentsError } = await supabase
       .from("user_profiles")
-      .select("id, full_name, phone, country, created_at, user_id")
+      .select("id, full_name, phone_number, address, created_at, user_id")
 
     if (studentsError) {
       console.error("Error fetching student profiles:", studentsError)
@@ -16,34 +16,27 @@ export async function GET() {
     }
 
     // Get emails from auth table
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-
-    if (authError) {
-      console.error("Error fetching auth users:", authError)
-    }
+    const { data: authUsers } = await supabase.auth.admin.listUsers()
 
     // Fetch enrollments for each student
-    const { data: enrollments, error: enrollmentsError } = await supabase.from("user_enrollments").select("user_id")
+    const { data: enrollments } = await supabase.from("user_enrollments").select("user_id")
 
-    // Fetch transactions for revenue calculation
-    const { data: transactions, error: transactionsError } = await supabase
-      .from("billing_transactions")
-      .select("user_id, total_amount")
+    // Fetch billing data
+    const { data: billing } = await supabase.from("user_billing").select("user_id, total_spent")
 
     const formattedStudents = (students || []).map((student: any) => {
       const authUser = authUsers?.users?.find((u) => u.id === student.user_id)
       const studentEnrollments = (enrollments || []).filter((e) => e.user_id === student.id)
-      const studentTransactions = (transactions || []).filter((t) => t.user_id === student.id)
-      const totalSpent = studentTransactions.reduce((sum, t) => sum + (t.total_amount || 0), 0)
+      const billingRecord = (billing || []).find((b) => b.user_id === student.id)
 
       return {
         id: student.id,
         email: authUser?.email || "N/A",
         fullName: student.full_name || "N/A",
-        phone: student.phone || "N/A",
-        country: student.country || "N/A",
+        phone: student.phone_number || "N/A",
+        address: student.address || "N/A",
         enrollmentCount: studentEnrollments.length,
-        totalSpent,
+        totalSpent: billingRecord?.total_spent || 0,
         verificationStatus: authUser ? "verified" : "pending",
         createdAt: student.created_at,
       }
