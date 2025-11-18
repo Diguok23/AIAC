@@ -47,53 +47,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Certification not found" }, { status: 404 })
     }
 
-    // Calculate due date (7 days from now)
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + 7)
-
-    // Create enrollment
-    const { data: enrollment, error: enrollError } = await supabase
-      .from("user_enrollments")
-      .insert({
-        user_id: userId,
-        certification_id: certificationId,
-        status: "active",
-        progress: 0,
-        payment_status: "pending",
-        due_date: dueDate.toISOString(),
-        certificate_issued: false,
-      })
-      .select()
-      .single()
-
-    if (enrollError) {
-      console.error("Enrollment creation error:", enrollError)
-      return NextResponse.json({ error: "Failed to create enrollment" }, { status: 500 })
-    }
-
-    // Get modules for this certification
-    const { data: modules, error: moduleError } = await supabase
-      .from("modules")
-      .select("id")
-      .eq("certification_id", certificationId)
-
-    if (!moduleError && modules && modules.length > 0) {
-      const userModuleData = modules.map((module) => ({
-        user_id: userId,
-        module_id: module.id,
-        is_completed: false,
-      }))
-
-      await supabase.from("user_modules").insert(userModuleData)
-    }
-
-    // Get user profile for email
-    const { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("first_name, email")
-      .eq("user_id", userId)
-      .single()
-
     // Calculate billing info
     const DST_TAX_RATE = 0.16
     const basePrice = Number.parseFloat(certification.price?.toString() || "0")
@@ -102,14 +55,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      enrollment,
       billing: {
         basePrice,
         dstTax,
         totalAmount,
-        dueDate: dueDate.toISOString(),
       },
-      message: "Successfully enrolled in certification",
+      message: "Ready for payment",
     })
   } catch (error) {
     console.error("Enrollment error:", error)

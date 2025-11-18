@@ -19,6 +19,7 @@ interface IntasendPaymentFormProps {
   email: string
   firstName?: string
   lastName?: string
+  userId?: string
 }
 
 export default function IntasendPaymentForm({
@@ -29,6 +30,7 @@ export default function IntasendPaymentForm({
   email,
   firstName = "",
   lastName = "",
+  userId,
 }: IntasendPaymentFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -80,6 +82,7 @@ export default function IntasendPaymentForm({
           firstName,
           lastName,
           phoneNumber,
+          userId,
         }),
       })
 

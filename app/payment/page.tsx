@@ -18,10 +18,13 @@ export default function PaymentPage() {
   const [applicationData, setApplicationData] = useState<any>(null)
   const [certificationData, setCertificationData] = useState<any>(null)
   const [error, setError] = useState("")
+  const [userId, setUserId] = useState<string>("")
 
   useEffect(() => {
     const applicationId = searchParams?.get("applicationId")
     const certificationId = searchParams?.get("certificationId")
+    const userIdParam = searchParams?.get("userId")
+    if (userIdParam) setUserId(userIdParam)
 
     if (!applicationId && !certificationId) {
       setError(
@@ -152,6 +155,7 @@ export default function PaymentPage() {
               email={email}
               firstName={firstName}
               lastName={lastName}
+              userId={userId}
             />
           )}
         </div>

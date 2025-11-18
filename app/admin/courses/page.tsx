@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Edit, Trash2, Plus } from "lucide-react"
+import { Loader2, Search, Edit, Trash2, Plus } from 'lucide-react'
 import { toast } from "sonner"
 
 interface Course {
@@ -119,7 +119,7 @@ export default function CoursesPage() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Instructor</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead>Price (USD)</TableHead>
                   <TableHead>Level</TableHead>
                   <TableHead>Enrollments</TableHead>
                   <TableHead>Rating</TableHead>
@@ -132,7 +132,7 @@ export default function CoursesPage() {
                   <TableRow key={course.id}>
                     <TableCell className="font-medium">{course.title}</TableCell>
                     <TableCell>{course.instructorName || "N/A"}</TableCell>
-                    <TableCell>KES {course.price.toLocaleString()}</TableCell>
+                    <TableCell>${course.price.toLocaleString()}</TableCell>
                     <TableCell>{course.level}</TableCell>
                     <TableCell>{course.enrollmentCount}</TableCell>
                     <TableCell>{course.rating.toFixed(1)}/5.0</TableCell>

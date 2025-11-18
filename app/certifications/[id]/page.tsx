@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Star, Users, Clock, Award, CheckCircle, AlertCircle } from "lucide-react"
+import { Loader2, Star, Users, Clock, Award, CheckCircle, AlertCircle } from 'lucide-react'
 import CourseEnrollmentButton from "@/components/course-enrollment-button"
 
 interface Module {
@@ -125,7 +125,7 @@ export default function CertificationDetailPage() {
               <p className="text-xl text-gray-600">{certification.description}</p>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-green-600 mb-2">KES {certification.price}</div>
+              <div className="text-3xl font-bold text-green-600 mb-2">${certification.price}</div>
               <CourseEnrollmentButton courseId={certification.id} />
             </div>
           </div>

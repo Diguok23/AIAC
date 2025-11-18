@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
       currency = "USD",
       applicationId,
       certificationId,
+      userId,
       programName,
       firstName,
       lastName,
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       email,
       phone_number: phoneNumber,
       amount: Number(amount),
-      currency: currency,
+      currency: "USD", // Force USD currency
       invoice_id: `APMIH_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
     }
 
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
         first_name: firstName,
         last_name: lastName,
         phone_number: phoneNumber,
+        user_id: userId, // Added user_id to metadata
+        certification_id: certificationId, // Ensure certification_id is in metadata
       },
     })
 
