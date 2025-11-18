@@ -713,7 +713,7 @@ export interface DashboardStats {
   completedCertifications: number
   pendingApplications: number
 }
-\
+
 export interface CertificationWithDetails extends Database["public"]["Tables"]["certifications"]["Row"] {
   learning_outcomes: Database["public"]["Tables"]["learning_outcomes"]["Row"][]
   prerequisites: Database["public"]["Tables"]["prerequisites"]["Row"][]
