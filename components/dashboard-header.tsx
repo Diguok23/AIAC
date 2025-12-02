@@ -58,7 +58,7 @@ export default function DashboardHeader({ user }: DashboardHeaderProps) {
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center space-x-4">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold text-navy-700">APMIH</span>
+            <span className="text-xl font-bold text-navy-700">IIHM</span>
             <span className="text-sm text-muted-foreground">Dashboard</span>
           </Link>
         </div>
