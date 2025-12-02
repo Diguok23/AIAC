@@ -9,8 +9,8 @@ export default function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-4">About APMIH</h3>
             <p className="text-gray-300 mb-4">
-              The American Professional Management Institute of Hospitality is dedicated to providing world-class
-              certification programs for hospitality professionals seeking careers on cruise ships.
+              The International Institute of Hospitality Management is committed to delivering top-tier certification programs
+              for individuals pursuing careers in cruise ship hospitality.
             </p>
             <div className="flex space-x-4">
               <Link href="#" className="text-gray-300 hover:text-white">
@@ -109,8 +109,8 @@ export default function Footer() {
               <p>123 Harbor Boulevard</p>
               <p>Miami, FL 33132</p>
               <p>United States</p>
-              <p className="mt-4">Phone: (800) 123-4567</p>
-              <p>Email: info@apmih.college</p>
+              <p className="mt-4">Phone: (800) 123-67876</p>
+              <p>Email: info@iihminstitute.com</p>
             </address>
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function Footer() {
         <div className="border-t border-gray-800 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400">
-              &copy; {new Date().getFullYear()} American Professional Management Institute of Hospitality. All rights
+              &copy; {new Date().getFullYear()} The International Institute of Hospitality Management. All rights
               reserved.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
