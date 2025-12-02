@@ -8,11 +8,10 @@ export default function Hero() {
       <div className="container mx-auto px-4 py-16 sm:py-20 md:py-24 sm:px-6 lg:px-8 relative z-10">
         <div className="max-w-3xl">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-            American Professional Management Institute of Hospitality
+            The International Institute of Hospitality Management (IIHM)
           </h1>
           <p className="mt-4 sm:mt-6 text-base sm:text-lg md:text-xl">
-            Elevate your career with industry-recognized certifications across hospitality, business, IT, healthcare,
-            and more.
+            Advance your professional journey with globally respected IIHM certifications, offering specialized training across hospitality, business, IT, healthcare, and several other dynamic fields.
           </p>
           <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-4">
             <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-white" asChild>
