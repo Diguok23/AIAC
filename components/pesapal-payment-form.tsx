@@ -206,7 +206,7 @@ export default function PesapalPaymentForm({
             <span>Secure payment powered by Pesapal</span>
           </div>
           <p className="text-xs text-gray-500">
-            Your payment information is processed securely. We support Mobile Money, Bank transfers, and Card payments.
+            Your payment details are handled with the highest level of security. IIHM accepts Mobile Money, bank transfers, and major card payments for your convenience.
           </p>
         </div>
       </CardContent>
