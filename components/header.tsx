@@ -71,7 +71,7 @@ export default function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
               <span className="text-xl font-bold text-navy-700">
-                <span className="text-navy-900">APMIH</span>
+                <span className="text-navy-900">IIHM</span>
               </span>
               <span className="ml-2 hidden text-sm text-muted-foreground md:inline-block">
                 The International Institute of Hospitality Management (IIHM)
