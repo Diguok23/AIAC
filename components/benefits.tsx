@@ -4,39 +4,39 @@ import { TrendingUp, Globe, Award, Clock, DollarSign, Briefcase } from "lucide-r
 export default function Benefits() {
   const benefits = [
     {
-      title: "Career Advancement",
+      title: "Professional Growth",
       description:
-        "Our certifications are recognized by major cruise lines worldwide, opening doors to career advancement and higher-paying positions.",
+        "IIHM credentials are valued by leading cruise and hospitality brands, giving you a strong advantage for promotions and higher-level roles.",
       icon: <TrendingUp className="h-8 w-8 text-navy-900" />,
     },
     {
-      title: "Global Recognition",
+      title: "Worldwide Credibility",
       description:
-        "APMIH certifications are internationally recognized, allowing you to work on cruise ships around the world.",
+        "IIHM certifications hold global recognition, enabling you to pursue exciting hospitality opportunities across international cruise fleets.",
       icon: <Globe className="h-8 w-8 text-navy-900" />,
     },
     {
-      title: "Industry-Specific Expertise",
+      title: "Cruise Industry Mastery",
       description:
-        "Gain specialized knowledge and skills specifically tailored to the unique environment of cruise ship hospitality.",
+        "Develop advanced, industry-focused skills designed specifically for the fast-paced and unique world of cruise hospitality.",
       icon: <Award className="h-8 w-8 text-navy-900" />,
     },
     {
-      title: "Flexible Learning",
+      title: "Learn Your Way",
       description:
-        "Choose from online, hybrid, or in-person learning options to fit your schedule and learning preferences.",
+        "Select from flexible study formats—including online, blended, or on-campus training—to suit your lifestyle and pace.",
       icon: <Clock className="h-8 w-8 text-navy-900" />,
     },
     {
-      title: "Competitive Salary",
+      title: "Higher Earning Potential",
       description:
-        "Certified professionals earn significantly higher salaries compared to non-certified counterparts in the cruise industry.",
+        "Graduates with IIHM certifications often secure better-paying roles, earning more than non-certified staff in similar positions.",
       icon: <DollarSign className="h-8 w-8 text-navy-900" />,
     },
     {
       title: "Job Placement Assistance",
       description:
-        "Our career services team works directly with major cruise lines to help place our graduates in rewarding positions.",
+        "Our dedicated placement team partners with major cruise lines to connect IIHM graduates with rewarding and long-term career opportunities.",
       icon: <Briefcase className="h-8 w-8 text-navy-900" />,
     },
   ]
@@ -47,8 +47,7 @@ export default function Benefits() {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-navy-900">Benefits of APMIH Certification</h2>
           <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
-            Our certifications provide numerous advantages for professionals seeking careers in the cruise ship
-            hospitality industry.
+            Our certification programs offer significant benefits for individuals aiming to build careers in cruise hospitality.
           </p>
         </div>
 
