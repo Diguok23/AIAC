@@ -45,9 +45,9 @@ export default function Benefits() {
     <section id="benefits" className="py-16 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-navy-900">Benefits of APMIH Certification</h2>
+          <h2 className="text-3xl font-bold text-navy-900">Benefits of IIHM Certification</h2>
           <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
-            Our certification programs offer significant benefits for individuals aiming to build careers in cruise hospitality.
+            Our certification programs provide valuable skills and opportunities for professionals pursuing successful careers in cruise ship hospitality.
           </p>
         </div>
 
