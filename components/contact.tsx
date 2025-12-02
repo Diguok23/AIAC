@@ -11,7 +11,7 @@ export default function Contact() {
         <div className="text-center mb-8 sm:mb-12">
           <h2 className="text-2xl sm:text-3xl font-bold text-navy-900">Contact Us</h2>
           <p className="mt-3 sm:mt-4 text-base sm:text-lg text-gray-600 max-w-3xl mx-auto">
-            Have questions about our certification programs? Get in touch with our admissions team.
+            Need more information about our certification courses? Contact our admissions specialists today..
           </p>
         </div>
 
@@ -105,9 +105,9 @@ export default function Contact() {
                     <div>
                       <h3 className="font-medium">Phone</h3>
                       <p className="text-gray-600 text-sm sm:text-base">
-                        Toll-Free: (800) 123-4567
+                        Toll-Free: +122345678234567
                         <br />
-                        International: +1 (305) 123-4567
+                        International: +1 (305) 23456789
                       </p>
                     </div>
                   </div>
@@ -117,9 +117,9 @@ export default function Contact() {
                     <div>
                       <h3 className="font-medium">Email</h3>
                       <p className="text-gray-600 text-sm sm:text-base">
-                        Admissions: info@apmih.college
+                        Admissions: applications@iihminstitute.com
                         <br />
-                        General Inquiries: info@apmih.college
+                        General Inquiries: info@iihminstitute.com
                       </p>
                     </div>
                   </div>
