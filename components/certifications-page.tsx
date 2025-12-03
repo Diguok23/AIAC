@@ -26,7 +26,7 @@ import { createSupabaseClient } from "@/lib/supabase"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-export default function CertificationsPage() {
+export function CertificationsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [priceFilter, setPriceFilter] = useState("all")
   const [levelFilter, setLevelFilter] = useState("all")
@@ -218,7 +218,6 @@ export default function CertificationsPage() {
             </Select>
           </div>
 
-          {/* Active filters */}
           {(searchTerm || priceFilter !== "all" || levelFilter !== "all") && (
             <div className="flex flex-wrap gap-2 mt-4">
               {searchTerm && (
@@ -407,3 +406,5 @@ function CertificationCard({ cert, isEnrolled, onEnroll, isEnrolling, isAuthenti
     </Card>
   )
 }
+
+// export { CertificationsPage }

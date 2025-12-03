@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Facebook, Twitter, Instagram, Linkedin, Youtube } from "lucide-react"
 
-export default function Footer() {
+export function Footer() {
   return (
     <footer className="bg-navy-900 text-white">
       <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
@@ -9,8 +9,8 @@ export default function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-4">About IIHM</h3>
             <p className="text-gray-300 mb-4">
-              The International Institute of Hospitality Management (IIHM) is committed to delivering top-tier certification programs
-              for individuals pursuing careers in cruise ship hospitality.
+              The International Institute of Hospitality Management (IIHM) is committed to delivering top-tier
+              certification programs for individuals pursuing careers in cruise ship hospitality.
             </p>
             <div className="flex space-x-4">
               <Link href="#" className="text-gray-300 hover:text-white">
@@ -138,3 +138,5 @@ export default function Footer() {
     </footer>
   )
 }
+
+export default Footer
