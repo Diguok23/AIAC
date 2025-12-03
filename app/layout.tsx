@@ -5,14 +5,13 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import Header from "@/components/header" // Ensure this is the only place Header is rendered globally
-import Script from "next/script"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "American Professional Management Institute of Hospitality",
   description: "Certifications for the hospitality industry, especially cruise ships.",
-    generator: 'v0.app'
+  generator: "v0.app",
 }
 
 export default function RootLayout({
@@ -28,19 +27,6 @@ export default function RootLayout({
           <main>{children}</main>
           <Toaster />
         </ThemeProvider>
-
-        {/* Zoho SalesIQ Script */}
-        <Script id="zoho-salesiq-init" strategy="afterInteractive">
-          {`
-            window.$zoho=window.$zoho || {};
-            $zoho.salesiq=$zoho.salesiq||{ready:function(){}};
-          `}
-        </Script>
-        <Script
-          id="zsiqscript"
-          src="https://salesiq.zohopublic.com/widget?wc=siq3fd10a26ef516a8d90a7389af5909cdc0f6efb7822c4cf5b85357a78da797eeb"
-          defer
-        />
       </body>
     </html>
   )
