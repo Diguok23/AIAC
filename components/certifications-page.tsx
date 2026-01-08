@@ -126,8 +126,8 @@ export function CertificationsPage() {
         variant: "default",
       })
 
-      // Redirect to dashboard
-      router.push("/dashboard/certifications")
+      // Redirect to applications page instead of certifications
+      router.push("/dashboard/applications")
     } catch (error) {
       console.error("Error enrolling:", error)
       toast({

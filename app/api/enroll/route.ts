@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createSupabaseClient } from "@/lib/supabase"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,23 +10,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Certification ID is required" }, { status: 400 })
     }
 
-    const supabase = createSupabaseClient()
+    const cookieStore = await cookies()
+    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    })
 
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    // Get current user from session
+    const { data: sessionData } = await supabase.auth.getSession()
 
-    if (userError || !user) {
+    if (!sessionData.session?.user) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
+
+    const user_id = sessionData.session.user.id
 
     // Check if user has any existing active enrollments
     const { data: activeEnrollments, error: activeEnrollmentsError } = await supabase
       .from("user_enrollments")
       .select("id, certification_id")
-      .eq("user_id", user.id)
+      .eq("user_id", user_id)
       .eq("status", "active") // Only check for active enrollments
 
     if (activeEnrollmentsError) {
@@ -48,7 +64,7 @@ export async function POST(request: NextRequest) {
     const { data: application, error: appError } = await supabase
       .from("applications")
       .select("*")
-      .eq("email", user.email)
+      .eq("email", sessionData.session.user.email)
       .eq("certification_id", certificationId)
       .eq("status", "approved")
       .single()
@@ -61,7 +77,7 @@ export async function POST(request: NextRequest) {
     const { data: existingEnrollment, error: enrollmentCheckError } = await supabase
       .from("user_enrollments")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user_id)
       .eq("certification_id", certificationId)
       .single()
 
@@ -73,7 +89,7 @@ export async function POST(request: NextRequest) {
     const { data: enrollment, error: enrollmentError } = await supabase
       .from("user_enrollments")
       .insert({
-        user_id: user.id,
+        user_id: user_id,
         certification_id: certificationId,
         status: "active",
         progress: 0,
