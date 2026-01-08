@@ -9,7 +9,7 @@ import Header from "@/components/header"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "American Professional Management Institute of Hospitality",
+  title: "The International Institute of Hospitality Management",
   description: "Certifications for the hospitality industry, especially cruise ships.",
   generator: "v0.app",
 }
