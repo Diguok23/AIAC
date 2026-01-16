@@ -109,7 +109,7 @@ export function Footer() {
               <p>123 Harbor Boulevard</p>
               <p>Miami, FL 33132</p>
               <p>United States</p>
-              <p className="mt-4">Phone: (800) 123-67876</p>
+              <p className="mt-4">Phone:+ (579) 396-6751</p>
               <p>Email: info@iihminstitute.com</p>
             </address>
           </div>
